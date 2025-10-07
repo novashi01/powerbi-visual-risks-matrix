@@ -65,12 +65,14 @@ export class Visual implements IVisual {
     }
 
     private getSeverityColor(score: number): string {
-        // Default bands: Low 1-4, Mod 5-9, High 10-16, Extreme 17-25
         const low = (this.formattingSettings as any)?.severityCard?.low?.value?.value || "#388e3c";
         const mod = (this.formattingSettings as any)?.severityCard?.moderate?.value?.value || "#fbc02d";
         const high = (this.formattingSettings as any)?.severityCard?.high?.value?.value || "#f57c00";
         const ext = (this.formattingSettings as any)?.severityCard?.extreme?.value?.value || "#d32f2f";
-        if (score >= 17) return ext; if (score >= 10) return high; if (score >= 5) return mod; return low;
+        const tLow = (this.formattingSettings as any)?.thresholdsCard?.lowMax?.value ?? 4;
+        const tMod = (this.formattingSettings as any)?.thresholdsCard?.moderateMax?.value ?? 9;
+        const tHigh = (this.formattingSettings as any)?.thresholdsCard?.highMax?.value ?? 16;
+        if (score > tHigh) return ext; if (score > tMod) return high; if (score > tLow) return mod; return low;
     }
 
     private renderGrid(vp: IViewport) {
@@ -91,17 +93,21 @@ export class Visual implements IVisual {
                 this.gGrid.appendChild(rect);
             }
         }
-        // Axes labels 1..5
+        // Axes labels custom or 1..5
+        const lLabCSV = (this.formattingSettings as any)?.axesCard?.likelihoodLabels?.value as string || "1,2,3,4,5";
+        const cLabCSV = (this.formattingSettings as any)?.axesCard?.consequenceLabels?.value as string || "1,2,3,4,5";
+        const lLabs = lLabCSV.split(',').map(s=>s.trim());
+        const cLabs = cLabCSV.split(',').map(s=>s.trim());
         for (let x = 0; x < cols; x++) {
             const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
             tx.setAttribute("x", String(m.l + (x + 0.5) * cw)); tx.setAttribute("y", String(vp.height - 8));
-            tx.setAttribute("text-anchor", "middle"); tx.setAttribute("font-size", "10"); tx.textContent = String(x + 1);
+            tx.setAttribute("text-anchor", "middle"); tx.setAttribute("font-size", "10"); tx.textContent = lLabs[x] || String(x + 1);
             this.gGrid.appendChild(tx);
         }
         for (let y = 0; y < rows; y++) {
             const ty = document.createElementNS("http://www.w3.org/2000/svg", "text");
             ty.setAttribute("x", String(12)); ty.setAttribute("y", String(m.t + (y + 0.6) * ch));
-            ty.setAttribute("text-anchor", "start"); ty.setAttribute("font-size", "10"); ty.textContent = String(rows - y);
+            ty.setAttribute("text-anchor", "start"); ty.setAttribute("font-size", "10"); ty.textContent = cLabs[rows - y - 1] || String(rows - y);
             this.gGrid.appendChild(ty);
         }
     }
@@ -153,24 +159,39 @@ export class Visual implements IVisual {
             const end = (d.lRes && d.cRes) ? toXY(d.lRes, d.cRes) : start;
             if (!end) continue;
             const jit = this.stableJitter(d.id, cw, ch);
-            if (start && (start.x !== end.x || start.y !== end.y)) {
+            const showArrows = (this.formattingSettings as any)?.arrowsCard?.show?.value !== false;
+            const markerSize = (this.formattingSettings as any)?.markersCard?.size?.value ?? 6;
+            const overrideColor = (this.formattingSettings as any)?.markersCard?.color?.value?.value as string;
+            const finalColor = overrideColor && overrideColor !== "" ? overrideColor : color;
+            if (showArrows && start && (start.x !== end.x || start.y !== end.y)) {
                 const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
                 line.setAttribute("x1", String(start.x)); line.setAttribute("y1", String(start.y));
                 line.setAttribute("x2", String(end.x)); line.setAttribute("y2", String(end.y));
                 line.setAttribute("stroke", "#666"); line.setAttribute("stroke-width", "1.5"); line.setAttribute("marker-end", "url(#arrow)");
                 this.gArrows.appendChild(line);
             }
+            const showLabels = (this.formattingSettings as any)?.labelsCard?.show?.value === true;
+            const labelSize = (this.formattingSettings as any)?.labelsCard?.fontSize?.value ?? 10;
+            const showTooltips = (this.formattingSettings as any)?.tooltipsCard?.show?.value !== false;
             if (start) {
                 const c1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                 c1.setAttribute("cx", String(start.x + jit.dx)); c1.setAttribute("cy", String(start.y + jit.dy));
-                c1.setAttribute("r", "5"); c1.setAttribute("fill", color); c1.setAttribute("fill-opacity", "0.6"); c1.setAttribute("stroke", "#333"); c1.setAttribute("stroke-width", "1");
+                c1.setAttribute("r", String(Math.max(1, markerSize - 1))); c1.setAttribute("fill", finalColor); c1.setAttribute("fill-opacity", "0.5"); c1.setAttribute("stroke", "#333"); c1.setAttribute("stroke-width", "1");
+                if (showTooltips) c1.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
                 this.gPoints.appendChild(c1);
             }
             if (end) {
                 const c2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                 c2.setAttribute("cx", String(end.x + jit.dx)); c2.setAttribute("cy", String(end.y + jit.dy));
-                c2.setAttribute("r", "6"); c2.setAttribute("fill", color); c2.setAttribute("stroke", "#111"); c2.setAttribute("stroke-width", "1");
+                c2.setAttribute("r", String(markerSize)); c2.setAttribute("fill", finalColor); c2.setAttribute("stroke", "#111"); c2.setAttribute("stroke-width", "1");
+                if (showTooltips) c2.setAttribute("title", `${d.id} (R: ${d.lRes ?? d.lInh}×${d.cRes ?? d.cInh})`);
                 this.gPoints.appendChild(c2);
+                if (showLabels) {
+                    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    label.setAttribute("x", String(end.x + jit.dx + markerSize + 2)); label.setAttribute("y", String(end.y + jit.dy + 3));
+                    label.setAttribute("font-size", String(labelSize)); label.setAttribute("fill", "#111"); label.textContent = d.id;
+                    this.gPoints.appendChild(label);
+                }
             }
         }
     }

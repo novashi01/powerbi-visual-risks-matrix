@@ -27,6 +27,47 @@
         "extreme": { "displayName": "Extreme", "type": { "fill": { "solid": { "color": true } } } }
       }
     },
+    "thresholds": {
+      "displayName": "Severity thresholds",
+      "properties": {
+        "lowMax": { "displayName": "Low max", "type": { "numeric": true } },
+        "moderateMax": { "displayName": "Moderate max", "type": { "numeric": true } },
+        "highMax": { "displayName": "High max", "type": { "numeric": true } }
+      }
+    },
+    "axes": {
+      "displayName": "Axis labels",
+      "properties": {
+        "likelihoodLabels": { "displayName": "Likelihood labels (CSV)", "type": { "text": true } },
+        "consequenceLabels": { "displayName": "Consequence labels (CSV)", "type": { "text": true } }
+      }
+    },
+    "markers": {
+      "displayName": "Markers",
+      "properties": {
+        "size": { "displayName": "Marker size", "type": { "numeric": true } },
+        "color": { "displayName": "Marker color override", "type": { "fill": { "solid": { "color": true } } } }
+      }
+    },
+    "labels": {
+      "displayName": "Labels",
+      "properties": {
+        "show": { "displayName": "Show labels", "type": { "bool": true } },
+        "fontSize": { "displayName": "Label size", "type": { "formatting": { "fontSize": true } } }
+      }
+    },
+    "arrows": {
+      "displayName": "Arrows",
+      "properties": {
+        "show": { "displayName": "Show arrows", "type": { "bool": true } }
+      }
+    },
+    "tooltips": {
+      "displayName": "Tooltips",
+      "properties": {
+        "show": { "displayName": "Show tooltips", "type": { "bool": true } }
+      }
+    },
     "animation": {
       "displayName": "Animation",
       "properties": {
