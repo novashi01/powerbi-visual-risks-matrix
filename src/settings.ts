@@ -71,13 +71,35 @@ class DataPointCardSettings extends FormattingSettingsCard {
     slices: Array<FormattingSettingsSlice> = [this.defaultColor, this.showAllDataPoints, this.fill, this.fillRule, this.fontSize];
 }
 
+/** Severity colors card */
+class SeverityCardSettings extends FormattingSettingsCard {
+    low = new formattingSettings.ColorPicker({ name: "low", displayName: "Low", value: { value: "#388e3c" } });
+    moderate = new formattingSettings.ColorPicker({ name: "moderate", displayName: "Moderate", value: { value: "#fbc02d" } });
+    high = new formattingSettings.ColorPicker({ name: "high", displayName: "High", value: { value: "#f57c00" } });
+    extreme = new formattingSettings.ColorPicker({ name: "extreme", displayName: "Extreme", value: { value: "#d32f2f" } });
+
+    name: string = "severity";
+    displayName: string = "Severity colors";
+    slices: Array<FormattingSettingsSlice> = [this.low, this.moderate, this.high, this.extreme];
+}
+
+/** Animation card */
+class AnimationCardSettings extends FormattingSettingsCard {
+    enabled = new formattingSettings.ToggleSwitch({ name: "enabled", displayName: "Enable animation", value: true });
+    durationMs = new formattingSettings.NumUpDown({ name: "durationMs", displayName: "Duration (ms)", value: 800 });
+
+    name: string = "animation";
+    displayName: string = "Animation";
+    slices: Array<FormattingSettingsSlice> = [this.enabled, this.durationMs];
+}
+
 /**
 * visual settings model class
-*
 */
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
-    // Create formatting settings model formatting cards
     dataPointCard = new DataPointCardSettings();
+    severityCard = new SeverityCardSettings();
+    animationCard = new AnimationCardSettings();
 
-    cards = [this.dataPointCard];
+    cards = [this.dataPointCard, this.severityCard, this.animationCard];
 }

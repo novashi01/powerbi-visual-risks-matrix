@@ -14,41 +14,27 @@
     "objects": {
         "dataPoint": {
             "properties": {
-                "defaultColor": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "showAllDataPoints": {
-                    "type": {
-                        "bool": true
-                    }
-                },
-                "fill": {
-                    "type": {
-                        "fill": {
-                            "solid": {
-                                "color": true
-                            }
-                        }
-                    }
-                },
-                "fillRule": {
-                    "type": {
-                        "fill": {}
-                    }
-                },
-                 "fontSize": {
-                    "type": {
-                        "formatting": {
-                            "fontSize": true
-                        }
-                    }
-                }
+                "defaultColor": { "type": { "fill": { "solid": { "color": true } } } },
+                "showAllDataPoints": { "type": { "bool": true } },
+                "fill": { "type": { "fill": { "solid": { "color": true } } } },
+                "fillRule": { "type": { "fill": {} } },
+                "fontSize": { "type": { "formatting": { "fontSize": true } } }
+            }
+        },
+        "severity": {
+            "displayName": "Severity colors",
+            "properties": {
+                "low": { "displayName": "Low", "type": { "fill": { "solid": { "color": true } } } },
+                "moderate": { "displayName": "Moderate", "type": { "fill": { "solid": { "color": true } } } },
+                "high": { "displayName": "High", "type": { "fill": { "solid": { "color": true } } } },
+                "extreme": { "displayName": "Extreme", "type": { "fill": { "solid": { "color": true } } } }
+            }
+        },
+        "animation": {
+            "displayName": "Animation",
+            "properties": {
+                "enabled": { "displayName": "Enable animation", "type": { "bool": true } },
+                "durationMs": { "displayName": "Duration (ms)", "type": { "numeric": true } }
             }
         }
     },
@@ -56,22 +42,10 @@
         {
             "categorical": {
                 "categories": {
-                    "for": {
-                        "in": "category"
-                    },
-                    "dataReductionAlgorithm": {
-                        "top": {}
-                    }
+                    "for": { "in": "category" },
+                    "dataReductionAlgorithm": { "top": {} }
                 },
-                "values": {
-                    "select": [
-                        {
-                            "bind": {
-                                "to": "measure"
-                            }
-                        }
-                    ]
-                }
+                "values": { "select": [ { "bind": { "to": "measure" } } ] }
             }
         }
     ],
