@@ -1,77 +1,177 @@
 /*
 *  Power BI Visual CLI
-*
-*  Copyright (c) Microsoft Corporation
-*  All rights reserved.
 *  MIT License
-*
-*  Permission is hereby granted, free of charge, to any person obtaining a copy
-*  of this software and associated documentation files (the ""Software""), to deal
-*  in the Software without restriction, including without limitation the rights
-*  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-*  copies of the Software, and to permit persons to whom the Software is
-*  furnished to do so, subject to the following conditions:
-*
-*  The above copyright notice and this permission notice shall be included in
-*  all copies or substantial portions of the Software.
-*
-*  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-*  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-*  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-*  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-*  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-*  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-*  THE SOFTWARE.
 */
 "use strict";
 
 import powerbi from "powerbi-visuals-api";
-import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
-import "./../style/visual.less";
-
+import DataView = powerbi.DataView;
+import DataViewCategorical = powerbi.DataViewCategorical;
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import IVisual = powerbi.extensibility.visual.IVisual;
-
+import IViewport = powerbi.IViewport;
+import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import { VisualFormattingSettingsModel } from "./settings";
+import "./../style/visual.less";
+
+interface RiskPoint {
+    id: string;
+    lInh?: number; cInh?: number;
+    lRes?: number; cRes?: number;
+    category?: string;
+}
 
 export class Visual implements IVisual {
-    private target: HTMLElement;
-    private updateCount: number;
-    private textNode: Text;
+    private svg: SVGSVGElement;
+    private gGrid: SVGGElement;
+    private gArrows: SVGGElement;
+    private gPoints: SVGGElement;
     private formattingSettings: VisualFormattingSettingsModel;
     private formattingSettingsService: FormattingSettingsService;
 
     constructor(options: VisualConstructorOptions) {
-        console.log('Visual constructor', options);
         this.formattingSettingsService = new FormattingSettingsService();
-        this.target = options.element;
-        this.updateCount = 0;
-        if (document) {
-            const new_p: HTMLElement = document.createElement("p");
-            new_p.appendChild(document.createTextNode("Update count:"));
-            const new_em: HTMLElement = document.createElement("em");
-            this.textNode = document.createTextNode(this.updateCount.toString());
-            new_em.appendChild(this.textNode);
-            new_p.appendChild(new_em);
-            this.target.appendChild(new_p);
-        }
+        this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        this.gGrid = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        this.gArrows = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        this.gPoints = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+        marker.setAttribute("id", "arrow"); marker.setAttribute("orient", "auto"); marker.setAttribute("markerWidth", "8"); marker.setAttribute("markerHeight", "8"); marker.setAttribute("refX", "8"); marker.setAttribute("refY", "4");
+        const mpath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        mpath.setAttribute("d", "M0,0 L8,4 L0,8 Z"); mpath.setAttribute("fill", "#333");
+        marker.appendChild(mpath); defs.appendChild(marker); this.svg.appendChild(defs);
+        this.svg.appendChild(this.gGrid); this.svg.appendChild(this.gArrows); this.svg.appendChild(this.gPoints);
+        options.element.innerHTML = ""; options.element.appendChild(this.svg);
     }
 
     public update(options: VisualUpdateOptions) {
-        this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, options.dataViews[0]);
+        const view = options.dataViews && options.dataViews[0];
+        this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
+        const vp = options.viewport; this.resize(vp);
+        this.renderGrid(vp);
+        const data = this.mapData(view);
+        this.renderData(vp, data);
+    }
 
-        console.log('Visual update', options);
-        if (this.textNode) {
-            this.textNode.textContent = (this.updateCount++).toString();
+    public getFormattingModel(): powerbi.visuals.FormattingModel {
+        return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
+    }
+
+    private resize(vp: IViewport) {
+        this.svg.setAttribute("width", String(vp.width));
+        this.svg.setAttribute("height", String(vp.height));
+    }
+
+    private getSeverityColor(score: number): string {
+        // Default bands: Low 1-4, Mod 5-9, High 10-16, Extreme 17-25
+        const low = (this.formattingSettings as any)?.severityCard?.low?.value?.value || "#388e3c";
+        const mod = (this.formattingSettings as any)?.severityCard?.moderate?.value?.value || "#fbc02d";
+        const high = (this.formattingSettings as any)?.severityCard?.high?.value?.value || "#f57c00";
+        const ext = (this.formattingSettings as any)?.severityCard?.extreme?.value?.value || "#d32f2f";
+        if (score >= 17) return ext; if (score >= 10) return high; if (score >= 5) return mod; return low;
+    }
+
+    private renderGrid(vp: IViewport) {
+        this.gGrid.innerHTML = "";
+        const m = { l: 40, r: 10, t: 10, b: 30 };
+        const w = vp.width - m.l - m.r, h = vp.height - m.t - m.b;
+        const cols = 5, rows = 5; const cw = w / cols, ch = h / rows;
+        // Cells with severity background
+        for (let x = 0; x < cols; x++) {
+            for (let y = 0; y < rows; y++) {
+                const L = x + 1; const C = rows - y; const score = L * C;
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", String(m.l + x * cw));
+                rect.setAttribute("y", String(m.t + y * ch));
+                rect.setAttribute("width", String(cw)); rect.setAttribute("height", String(ch));
+                rect.setAttribute("fill", this.getSeverityColor(score)); rect.setAttribute("fill-opacity", "0.25");
+                rect.setAttribute("stroke", "#ccc"); rect.setAttribute("stroke-width", "1");
+                this.gGrid.appendChild(rect);
+            }
+        }
+        // Axes labels 1..5
+        for (let x = 0; x < cols; x++) {
+            const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            tx.setAttribute("x", String(m.l + (x + 0.5) * cw)); tx.setAttribute("y", String(vp.height - 8));
+            tx.setAttribute("text-anchor", "middle"); tx.setAttribute("font-size", "10"); tx.textContent = String(x + 1);
+            this.gGrid.appendChild(tx);
+        }
+        for (let y = 0; y < rows; y++) {
+            const ty = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            ty.setAttribute("x", String(12)); ty.setAttribute("y", String(m.t + (y + 0.6) * ch));
+            ty.setAttribute("text-anchor", "start"); ty.setAttribute("font-size", "10"); ty.textContent = String(rows - y);
+            this.gGrid.appendChild(ty);
         }
     }
 
-    /**
-     * Returns properties pane formatting model content hierarchies, properties and latest formatting values, Then populate properties pane.
-     * This method is called once every time we open properties pane or when the user edit any format property. 
-     */
-    public getFormattingModel(): powerbi.visuals.FormattingModel {
-        return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
+    private clamp(n?: number): number | undefined {
+        if (n == null || isNaN(n)) return undefined; return Math.max(1, Math.min(5, Math.round(n)));
+    }
+
+    private mapData(view?: DataView): RiskPoint[] {
+        const out: RiskPoint[] = [];
+        if (!view || !view.categorical) return out;
+        const cat = view.categorical as DataViewCategorical;
+        const riskCats = (cat.categories || []).find(c => c.source.roles && (c.source.roles as any)["riskId"]);
+        if (!riskCats) return out;
+        const vals = cat.values || [] as any;
+        const colByRole = (role: string) => vals.find((v: any) => v.source?.roles && v.source.roles[role]);
+        const LInh = colByRole("likelihoodInh"), CInh = colByRole("consequenceInh");
+        const LRes = colByRole("likelihoodRes"), CRes = colByRole("consequenceRes");
+        const Cat = (cat.categories || []).find(c => c.source.roles && (c.source.roles as any)["category"]);
+        const n = riskCats.values.length;
+        for (let i = 0; i < n; i++) {
+            const rp: RiskPoint = { id: String(riskCats.values[i]) };
+            rp.lInh = this.clamp(LInh?.values?.[i]); rp.cInh = this.clamp(CInh?.values?.[i]);
+            rp.lRes = this.clamp(LRes?.values?.[i]); rp.cRes = this.clamp(CRes?.values?.[i]);
+            rp.category = Cat ? String(Cat.values[i]) : undefined;
+            if (rp.lInh && rp.cInh || rp.lRes && rp.cRes) out.push(rp);
+        }
+        return out;
+    }
+
+    private stableJitter(id: string, cellW: number, cellH: number): { dx: number, dy: number } {
+        // simple hash-based jitter in [-0.3,0.3] cell size
+        let h = 2166136261; for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24); }
+        const r1 = ((h >>> 0) % 1000) / 1000 - 0.5; const r2 = (((h >>> 1) % 1000) / 1000) - 0.5;
+        return { dx: r1 * cellW * 0.3, dy: r2 * cellH * 0.3 };
+    }
+
+    private renderData(vp: IViewport, data: RiskPoint[]) {
+        this.gArrows.innerHTML = ""; this.gPoints.innerHTML = "";
+        const m = { l: 40, r: 10, t: 10, b: 30 };
+        const w = vp.width - m.l - m.r, h = vp.height - m.t - m.b;
+        const cols = 5, rows = 5; const cw = w / cols, ch = h / rows;
+        const toXY = (L: number, C: number) => {
+            const x = m.l + (L - 1) * cw + cw / 2; const y = m.t + (rows - C) * ch + ch / 2; return { x, y };
+        };
+        for (const d of data) {
+            const color = this.getSeverityColor(((d.lRes ?? d.lInh) || 1) * ((d.cRes ?? d.cInh) || 1));
+            const start = (d.lInh && d.cInh) ? toXY(d.lInh, d.cInh) : undefined;
+            const end = (d.lRes && d.cRes) ? toXY(d.lRes, d.cRes) : start;
+            if (!end) continue;
+            const jit = this.stableJitter(d.id, cw, ch);
+            if (start && (start.x !== end.x || start.y !== end.y)) {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", String(start.x)); line.setAttribute("y1", String(start.y));
+                line.setAttribute("x2", String(end.x)); line.setAttribute("y2", String(end.y));
+                line.setAttribute("stroke", "#666"); line.setAttribute("stroke-width", "1.5"); line.setAttribute("marker-end", "url(#arrow)");
+                this.gArrows.appendChild(line);
+            }
+            if (start) {
+                const c1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                c1.setAttribute("cx", String(start.x + jit.dx)); c1.setAttribute("cy", String(start.y + jit.dy));
+                c1.setAttribute("r", "5"); c1.setAttribute("fill", color); c1.setAttribute("fill-opacity", "0.6"); c1.setAttribute("stroke", "#333"); c1.setAttribute("stroke-width", "1");
+                this.gPoints.appendChild(c1);
+            }
+            if (end) {
+                const c2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                c2.setAttribute("cx", String(end.x + jit.dx)); c2.setAttribute("cy", String(end.y + jit.dy));
+                c2.setAttribute("r", "6"); c2.setAttribute("fill", color); c2.setAttribute("stroke", "#111"); c2.setAttribute("stroke-width", "1");
+                this.gPoints.appendChild(c2);
+            }
+        }
     }
 }

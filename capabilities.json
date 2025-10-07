@@ -1,53 +1,59 @@
 {
-    "dataRoles": [
-        {
-            "displayName": "Category Data",
-            "name": "category",
-            "kind": "Grouping"
-        },
-        {
-            "displayName": "Measure Data",
-            "name": "measure",
-            "kind": "Measure"
-        }
-    ],
-    "objects": {
-        "dataPoint": {
-            "properties": {
-                "defaultColor": { "type": { "fill": { "solid": { "color": true } } } },
-                "showAllDataPoints": { "type": { "bool": true } },
-                "fill": { "type": { "fill": { "solid": { "color": true } } } },
-                "fillRule": { "type": { "fill": {} } },
-                "fontSize": { "type": { "formatting": { "fontSize": true } } }
-            }
-        },
-        "severity": {
-            "displayName": "Severity colors",
-            "properties": {
-                "low": { "displayName": "Low", "type": { "fill": { "solid": { "color": true } } } },
-                "moderate": { "displayName": "Moderate", "type": { "fill": { "solid": { "color": true } } } },
-                "high": { "displayName": "High", "type": { "fill": { "solid": { "color": true } } } },
-                "extreme": { "displayName": "Extreme", "type": { "fill": { "solid": { "color": true } } } }
-            }
-        },
-        "animation": {
-            "displayName": "Animation",
-            "properties": {
-                "enabled": { "displayName": "Enable animation", "type": { "bool": true } },
-                "durationMs": { "displayName": "Duration (ms)", "type": { "numeric": true } }
-            }
-        }
+  "dataRoles": [
+    { "displayName": "Risk ID", "name": "riskId", "kind": "Grouping" },
+    { "displayName": "Inherent Likelihood", "name": "likelihoodInh", "kind": "Measure" },
+    { "displayName": "Inherent Consequence", "name": "consequenceInh", "kind": "Measure" },
+    { "displayName": "Residual Likelihood", "name": "likelihoodRes", "kind": "Measure" },
+    { "displayName": "Residual Consequence", "name": "consequenceRes", "kind": "Measure" },
+    { "displayName": "Category", "name": "category", "kind": "Grouping" },
+    { "displayName": "Tooltips", "name": "tooltips", "kind": "Measure" }
+  ],
+  "objects": {
+    "dataPoint": {
+      "properties": {
+        "defaultColor": { "type": { "fill": { "solid": { "color": true } } } },
+        "showAllDataPoints": { "type": { "bool": true } },
+        "fill": { "type": { "fill": { "solid": { "color": true } } } },
+        "fillRule": { "type": { "fill": {} } },
+        "fontSize": { "type": { "formatting": { "fontSize": true } } }
+      }
     },
-    "dataViewMappings": [
-        {
-            "categorical": {
-                "categories": {
-                    "for": { "in": "category" },
-                    "dataReductionAlgorithm": { "top": {} }
-                },
-                "values": { "select": [ { "bind": { "to": "measure" } } ] }
-            }
+    "severity": {
+      "displayName": "Severity colors",
+      "properties": {
+        "low": { "displayName": "Low", "type": { "fill": { "solid": { "color": true } } } },
+        "moderate": { "displayName": "Moderate", "type": { "fill": { "solid": { "color": true } } } },
+        "high": { "displayName": "High", "type": { "fill": { "solid": { "color": true } } } },
+        "extreme": { "displayName": "Extreme", "type": { "fill": { "solid": { "color": true } } } }
+      }
+    },
+    "animation": {
+      "displayName": "Animation",
+      "properties": {
+        "enabled": { "displayName": "Enable animation", "type": { "bool": true } },
+        "durationMs": { "displayName": "Duration (ms)", "type": { "numeric": true } }
+      }
+    }
+  },
+  "dataViewMappings": [
+    {
+      "categorical": {
+        "categories": [
+          { "for": { "in": "riskId" }, "dataReductionAlgorithm": { "top": {} } },
+          { "for": { "in": "category" }, "dataReductionAlgorithm": { "top": {} } }
+        ],
+        "values": {
+          "select": [
+            { "bind": { "to": "likelihoodInh" } },
+            { "bind": { "to": "consequenceInh" } },
+            { "bind": { "to": "likelihoodRes" } },
+            { "bind": { "to": "consequenceRes" } },
+            { "bind": { "to": "tooltips" } }
+          ]
         }
-    ],
-    "privileges": []
+      }
+    }
+  ],
+  "supportsHighlight": true,
+  "privileges": []
 }
