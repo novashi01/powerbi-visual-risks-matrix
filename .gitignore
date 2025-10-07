@@ -1,0 +1,16 @@
+# Logs
+logs/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+.tmp/
+.cache/
+dist/
+*.pbiviz
+
+# Editors
+.vscode/
+.DS_Store
+Thumbs.db
