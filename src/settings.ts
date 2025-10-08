@@ -71,13 +71,92 @@ class DataPointCardSettings extends FormattingSettingsCard {
     slices: Array<FormattingSettingsSlice> = [this.defaultColor, this.showAllDataPoints, this.fill, this.fillRule, this.fontSize];
 }
 
+/** Severity colors card */
+class SeverityCardSettings extends FormattingSettingsCard {
+    low = new formattingSettings.ColorPicker({ name: "low", displayName: "Low", value: { value: "#388e3c" } });
+    moderate = new formattingSettings.ColorPicker({ name: "moderate", displayName: "Moderate", value: { value: "#fbc02d" } });
+    high = new formattingSettings.ColorPicker({ name: "high", displayName: "High", value: { value: "#f57c00" } });
+    extreme = new formattingSettings.ColorPicker({ name: "extreme", displayName: "Extreme", value: { value: "#d32f2f" } });
+
+    name: string = "severity";
+    displayName: string = "Severity colors";
+    slices: Array<FormattingSettingsSlice> = [this.low, this.moderate, this.high, this.extreme];
+}
+
+/** Animation card */
+class AnimationCardSettings extends FormattingSettingsCard {
+    enabled = new formattingSettings.ToggleSwitch({ name: "enabled", displayName: "Enable animation", value: true });
+    durationMs = new formattingSettings.NumUpDown({ name: "durationMs", displayName: "Duration (ms)", value: 800 });
+
+    name: string = "animation";
+    displayName: string = "Animation";
+    slices: Array<FormattingSettingsSlice> = [this.enabled, this.durationMs];
+}
+
 /**
 * visual settings model class
-*
 */
-export class VisualFormattingSettingsModel extends FormattingSettingsModel {
-    // Create formatting settings model formatting cards
-    dataPointCard = new DataPointCardSettings();
+class ThresholdsCardSettings extends FormattingSettingsCard {
+    lowMax = new formattingSettings.NumUpDown({ name: "lowMax", displayName: "Low max", value: 4 });
+    moderateMax = new formattingSettings.NumUpDown({ name: "moderateMax", displayName: "Moderate max", value: 9 });
+    highMax = new formattingSettings.NumUpDown({ name: "highMax", displayName: "High max", value: 16 });
+    name: string = "thresholds"; displayName: string = "Severity thresholds";
+    slices: Array<FormattingSettingsSlice> = [this.lowMax, this.moderateMax, this.highMax];
+}
 
-    cards = [this.dataPointCard];
+class AxesCardSettings extends FormattingSettingsCard {
+    likelihoodLabels = new formattingSettings.TextInput({ name: "likelihoodLabels", displayName: "Likelihood labels (CSV)", value: "1,2,3,4,5" });
+    consequenceLabels = new formattingSettings.TextInput({ name: "consequenceLabels", displayName: "Consequence labels (CSV)", value: "1,2,3,4,5" });
+    name: string = "axes"; displayName: string = "Axis labels";
+    slices: Array<FormattingSettingsSlice> = [this.likelihoodLabels, this.consequenceLabels];
+}
+
+class MarkersCardSettings extends FormattingSettingsCard {
+    size = new formattingSettings.NumUpDown({ name: "size", displayName: "Marker size", value: 6 });
+    color = new formattingSettings.ColorPicker({ name: "color", displayName: "Marker color override", value: { value: "" } });
+    name: string = "markers"; displayName: string = "Markers";
+    slices: Array<FormattingSettingsSlice> = [this.size, this.color];
+}
+
+class LabelsCardSettings extends FormattingSettingsCard {
+    show = new formattingSettings.ToggleSwitch({ name: "show", displayName: "Show labels", value: false });
+    fontSize = new formattingSettings.NumUpDown({ name: "fontSize", displayName: "Label size", value: 10 });
+    name: string = "labels"; displayName: string = "Labels";
+    slices: Array<FormattingSettingsSlice> = [this.show, this.fontSize];
+}
+
+class ArrowsCardSettings extends FormattingSettingsCard {
+    show = new formattingSettings.ToggleSwitch({ name: "show", displayName: "Show arrows", value: true });
+    name: string = "arrows"; displayName: string = "Arrows";
+    slices: Array<FormattingSettingsSlice> = [this.show];
+}
+
+class TooltipsCardSettings extends FormattingSettingsCard {
+    show = new formattingSettings.ToggleSwitch({ name: "show", displayName: "Show tooltips", value: true });
+    name: string = "tooltips"; displayName: string = "Tooltips";
+    slices: Array<FormattingSettingsSlice> = [this.show];
+}
+
+export class VisualFormattingSettingsModel extends FormattingSettingsModel {
+    dataPointCard = new DataPointCardSettings();
+    severityCard = new SeverityCardSettings();
+    thresholdsCard = new ThresholdsCardSettings();
+    axesCard = new AxesCardSettings();
+    markersCard = new MarkersCardSettings();
+    labelsCard = new LabelsCardSettings();
+    arrowsCard = new ArrowsCardSettings();
+    tooltipsCard = new TooltipsCardSettings();
+    animationCard = new AnimationCardSettings();
+
+    cards = [
+        this.dataPointCard,
+        this.severityCard,
+        this.thresholdsCard,
+        this.axesCard,
+        this.markersCard,
+        this.labelsCard,
+        this.arrowsCard,
+        this.tooltipsCard,
+        this.animationCard
+    ];
 }
