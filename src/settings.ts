@@ -105,10 +105,8 @@ class ThresholdsCardSettings extends FormattingSettingsCard {
 }
 
 class AxesCardSettings extends FormattingSettingsCard {
-    likelihoodLabels = new formattingSettings.TextInput({ name: "likelihoodLabels", displayName: "Likelihood labels (CSV)", value: "1,2,3,4,5" });
-    consequenceLabels = new formattingSettings.TextInput({ name: "consequenceLabels", displayName: "Consequence labels (CSV)", value: "1,2,3,4,5" });
     name: string = "axes"; displayName: string = "Axis labels";
-    slices: Array<FormattingSettingsSlice> = [this.likelihoodLabels, this.consequenceLabels];
+    slices: Array<FormattingSettingsSlice> = [];
 }
 
 class MarkersCardSettings extends FormattingSettingsCard {
@@ -141,7 +139,6 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     dataPointCard = new DataPointCardSettings();
     severityCard = new SeverityCardSettings();
     thresholdsCard = new ThresholdsCardSettings();
-    axesCard = new AxesCardSettings();
     markersCard = new MarkersCardSettings();
     labelsCard = new LabelsCardSettings();
     arrowsCard = new ArrowsCardSettings();
@@ -152,7 +149,6 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
         this.dataPointCard,
         this.severityCard,
         this.thresholdsCard,
-        this.axesCard,
         this.markersCard,
         this.labelsCard,
         this.arrowsCard,

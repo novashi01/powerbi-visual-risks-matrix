@@ -11,6 +11,9 @@ import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructor
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IViewport = powerbi.IViewport;
+import ISelectionManager = powerbi.extensibility.ISelectionManager;
+import ISelectionId = powerbi.visuals.ISelectionId;
+import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import { VisualFormattingSettingsModel } from "./settings";
 import "./../style/visual.less";
@@ -20,6 +23,7 @@ interface RiskPoint {
     lInh?: number; cInh?: number;
     lRes?: number; cRes?: number;
     category?: string;
+    selectionId?: ISelectionId;
 }
 
 export class Visual implements IVisual {
@@ -30,7 +34,12 @@ export class Visual implements IVisual {
     private formattingSettings: VisualFormattingSettingsModel;
     private formattingSettingsService: FormattingSettingsService;
 
+    private host: IVisualHost;
+    private selectionManager: ISelectionManager;
+
     constructor(options: VisualConstructorOptions) {
+        this.host = options.host;
+        this.selectionManager = this.host.createSelectionManager();
         this.formattingSettingsService = new FormattingSettingsService();
         this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         this.gGrid = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -44,13 +53,27 @@ export class Visual implements IVisual {
         marker.appendChild(mpath); defs.appendChild(marker); this.svg.appendChild(defs);
         this.svg.appendChild(this.gGrid); this.svg.appendChild(this.gArrows); this.svg.appendChild(this.gPoints);
         options.element.innerHTML = ""; options.element.appendChild(this.svg);
+        // clear any prior selection visuals
+        this.selectionManager.clear();
+        // clear selection on background click
+        // reflect selection state by dimming unselected
+        this.selectionManager.registerOnSelectCallback(() => {
+            const hasSel = (this.selectionManager as any).hasSelection && (this.selectionManager as any).hasSelection();
+            const alpha = hasSel ? 0.2 : 1;
+            Array.from(this.gPoints.querySelectorAll('circle')).forEach(el => {
+                const sel = (el as any).__sel as ISelectionId | undefined;
+                const keep = !hasSel || (sel && (this.selectionManager as any).isSelected && (this.selectionManager as any).isSelected(sel));
+                (el as SVGCircleElement).setAttribute('opacity', keep ? '1' : String(alpha));
+            });
+        });
+        this.svg.addEventListener("click", (e) => { if (e.target === this.svg) this.selectionManager.clear(); });
     }
 
     public update(options: VisualUpdateOptions) {
         const view = options.dataViews && options.dataViews[0];
         this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
         const vp = options.viewport; this.resize(vp);
-        this.renderGrid(vp);
+        this.renderGrid(vp, view);
         const data = this.mapData(view);
         this.renderData(vp, data);
     }
@@ -75,7 +98,7 @@ export class Visual implements IVisual {
         if (score > tHigh) return ext; if (score > tMod) return high; if (score > tLow) return mod; return low;
     }
 
-    private renderGrid(vp: IViewport) {
+    private renderGrid(vp: IViewport, view?: DataView) {
         this.gGrid.innerHTML = "";
         const m = { l: 40, r: 10, t: 10, b: 30 };
         const w = vp.width - m.l - m.r, h = vp.height - m.t - m.b;
@@ -93,11 +116,21 @@ export class Visual implements IVisual {
                 this.gGrid.appendChild(rect);
             }
         }
-        // Axes labels custom or 1..5
-        const lLabCSV = (this.formattingSettings as any)?.axesCard?.likelihoodLabels?.value as string || "1,2,3,4,5";
-        const cLabCSV = (this.formattingSettings as any)?.axesCard?.consequenceLabels?.value as string || "1,2,3,4,5";
-        const lLabs = lLabCSV.split(',').map(s=>s.trim());
-        const cLabs = cLabCSV.split(',').map(s=>s.trim());
+        // Axes labels derived from dataset domain (default 1..5)
+        let lLabs = ["1","2","3","4","5"] as string[];
+        let cLabs = ["1","2","3","4","5"] as string[];
+        const cat = view && view.categorical as DataViewCategorical;
+        if (cat && cat.categories && cat.categories.length) {
+            // prefer distinct sorted values from measures if provided as categorical
+            const uniq = (arr: any[]) => Array.from(new Set(arr.map(v=>String(v))));
+            const lVals = (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["likelihoodRes"])?.values
+                       || (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["likelihoodInh"])?.values;
+            const cVals = (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["consequenceRes"])?.values
+                       || (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["consequenceInh"])?.values;
+            if (lVals) lLabs = uniq(lVals).sort((a,b)=>Number(a)-Number(b));
+            if (cVals) cLabs = uniq(cVals).sort((a,b)=>Number(a)-Number(b));
+            lLabs = lLabs.slice(0,5); cLabs = cLabs.slice(0,5);
+        }
         for (let x = 0; x < cols; x++) {
             const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
             tx.setAttribute("x", String(m.l + (x + 0.5) * cw)); tx.setAttribute("y", String(vp.height - 8));
@@ -117,6 +150,7 @@ export class Visual implements IVisual {
     }
 
     private mapData(view?: DataView): RiskPoint[] {
+        const maxN = 1000; // simple cap for data reduction
         const out: RiskPoint[] = [];
         if (!view || !view.categorical) return out;
         const cat = view.categorical as DataViewCategorical;
@@ -127,9 +161,10 @@ export class Visual implements IVisual {
         const LInh = colByRole("likelihoodInh"), CInh = colByRole("consequenceInh");
         const LRes = colByRole("likelihoodRes"), CRes = colByRole("consequenceRes");
         const Cat = (cat.categories || []).find(c => c.source.roles && (c.source.roles as any)["category"]);
-        const n = riskCats.values.length;
+        const n = Math.min(riskCats.values.length, maxN);
         for (let i = 0; i < n; i++) {
-            const rp: RiskPoint = { id: String(riskCats.values[i]) };
+            const selectionId = this.host.createSelectionIdBuilder().withCategory(riskCats, i).createSelectionId();
+            const rp: RiskPoint = { id: String(riskCats.values[i]), selectionId };
             rp.lInh = this.clamp(LInh?.values?.[i]); rp.cInh = this.clamp(CInh?.values?.[i]);
             rp.lRes = this.clamp(LRes?.values?.[i]); rp.cRes = this.clamp(CRes?.values?.[i]);
             rp.category = Cat ? String(Cat.values[i]) : undefined;
@@ -146,6 +181,7 @@ export class Visual implements IVisual {
     }
 
     private renderData(vp: IViewport, data: RiskPoint[]) {
+        const sm = this.selectionManager;
         this.gArrows.innerHTML = ""; this.gPoints.innerHTML = "";
         const m = { l: 40, r: 10, t: 10, b: 30 };
         const w = vp.width - m.l - m.r, h = vp.height - m.t - m.b;
@@ -178,6 +214,8 @@ export class Visual implements IVisual {
                 c1.setAttribute("cx", String(start.x + jit.dx)); c1.setAttribute("cy", String(start.y + jit.dy));
                 c1.setAttribute("r", String(Math.max(1, markerSize - 1))); c1.setAttribute("fill", finalColor); c1.setAttribute("fill-opacity", "0.5"); c1.setAttribute("stroke", "#333"); c1.setAttribute("stroke-width", "1");
                 if (showTooltips) c1.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
+                c1.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
+                (c1 as any).__sel = d.selectionId;
                 this.gPoints.appendChild(c1);
             }
             if (end) {
@@ -185,6 +223,8 @@ export class Visual implements IVisual {
                 c2.setAttribute("cx", String(end.x + jit.dx)); c2.setAttribute("cy", String(end.y + jit.dy));
                 c2.setAttribute("r", String(markerSize)); c2.setAttribute("fill", finalColor); c2.setAttribute("stroke", "#111"); c2.setAttribute("stroke-width", "1");
                 if (showTooltips) c2.setAttribute("title", `${d.id} (R: ${d.lRes ?? d.lInh}×${d.cRes ?? d.cInh})`);
+                c2.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
+                (c2 as any).__sel = d.selectionId;
                 this.gPoints.appendChild(c2);
                 if (showLabels) {
                     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
