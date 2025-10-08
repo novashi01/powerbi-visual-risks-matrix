@@ -37,10 +37,7 @@
     },
     "axes": {
       "displayName": "Axis labels",
-      "properties": {
-        "likelihoodLabels": { "displayName": "Likelihood labels (CSV)", "type": { "text": true } },
-        "consequenceLabels": { "displayName": "Consequence labels (CSV)", "type": { "text": true } }
-      }
+      "properties": {}
     },
     "markers": {
       "displayName": "Markers",
