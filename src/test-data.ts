@@ -36,7 +36,7 @@ export function createMockDataView(riskData: Array<{
   if (riskData.some(d => d.category)) {
     categories.push({
       source: {
-        roles: { category: true },
+        roles: { category: true } as any,
         displayName: 'Category',
         type: { text: true }
       },
@@ -91,15 +91,21 @@ export function createMockDataView(riskData: Array<{
     });
   }
 
+  // Create a proper DataViewValueColumns mock with the grouped method
+  const valuesWithGrouped = values as any;
+  valuesWithGrouped.grouped = () => [];
+  valuesWithGrouped.source = undefined;
+  valuesWithGrouped.identityFields = undefined;
+
   return {
     categorical: {
       categories,
-      values
+      values: valuesWithGrouped
     },
     metadata: {
       columns: []
     }
-  } as DataView;
+  } as unknown as DataView;
 }
 
 export const edgeCaseData = [
