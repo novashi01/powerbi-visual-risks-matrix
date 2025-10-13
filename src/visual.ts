@@ -20,8 +20,10 @@ import "./../style/visual.less";
 
 interface RiskPoint {
     id: string;
-    lInh?: number; cInh?: number;
-    lRes?: number; cRes?: number;
+    lInh?: number; 
+    cInh?: number;
+    lRes?: number; 
+    cRes?: number;
     category?: string;
     selectionId?: ISelectionId;
 }
@@ -47,12 +49,26 @@ export class Visual implements IVisual {
         this.gPoints = document.createElementNS("http://www.w3.org/2000/svg", "g");
         const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
         const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
-        marker.setAttribute("id", "arrow"); marker.setAttribute("orient", "auto"); marker.setAttribute("markerWidth", "8"); marker.setAttribute("markerHeight", "8"); marker.setAttribute("refX", "8"); marker.setAttribute("refY", "4");
+        marker.setAttribute("id", "arrow");
+        marker.setAttribute("orient", "auto");
+        marker.setAttribute("markerWidth", "8");
+        marker.setAttribute("markerHeight", "8");
+        marker.setAttribute("refX", "8");
+        marker.setAttribute("refY", "4");
         const mpath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        mpath.setAttribute("d", "M0,0 L8,4 L0,8 Z"); mpath.setAttribute("fill", "#333");
-        marker.appendChild(mpath); defs.appendChild(marker); this.svg.appendChild(defs);
-        this.svg.appendChild(this.gGrid); this.svg.appendChild(this.gArrows); this.svg.appendChild(this.gPoints);
-        options.element.innerHTML = ""; options.element.appendChild(this.svg);
+        mpath.setAttribute("d", "M0,0 L8,4 L0,8 Z");
+        mpath.setAttribute("fill", "#333");
+        marker.appendChild(mpath);
+        defs.appendChild(marker);
+        this.svg.appendChild(defs);
+        this.svg.appendChild(this.gGrid);
+        this.svg.appendChild(this.gArrows);
+        this.svg.appendChild(this.gPoints);
+        // Clear element safely without innerHTML
+        while (options.element.firstChild) {
+            options.element.removeChild(options.element.firstChild);
+        }
+        options.element.appendChild(this.svg);
         // clear any prior selection visuals
         this.selectionManager.clear();
         // clear selection on background click
@@ -60,13 +76,18 @@ export class Visual implements IVisual {
         this.selectionManager.registerOnSelectCallback(() => {
             this.updateSelectionHighlight();
         });
-        this.svg.addEventListener("click", (e) => { if (e.target === this.svg) this.selectionManager.clear(); });
+        this.svg.addEventListener("click", (e) => {
+            if (e.target === this.svg) {
+                this.selectionManager.clear();
+            }
+        });
     }
 
     public update(options: VisualUpdateOptions) {
         const view = options.dataViews && options.dataViews[0];
         this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
-        const vp = options.viewport; this.resize(vp);
+        const vp = options.viewport;
+        this.resize(vp);
         this.renderGrid(vp, view);
         const data = this.mapData(view);
         this.renderData(vp, data);
@@ -88,8 +109,9 @@ export class Visual implements IVisual {
             
             if (hasSelection && sel) {
                 // Check if this element's selection ID matches any selected ID
+                // Use JSON comparison as fallback since ISelectionId may not have key property
                 isSelected = selections.some(selectedId => 
-                    selectedId.key === sel.key
+                    JSON.stringify(selectedId) === JSON.stringify(sel)
                 );
             }
             
@@ -118,7 +140,10 @@ export class Visual implements IVisual {
     }
 
     private renderGrid(vp: IViewport, view?: DataView) {
-        this.gGrid.innerHTML = "";
+        // Clear grid safely without innerHTML
+        while (this.gGrid.firstChild) {
+            this.gGrid.removeChild(this.gGrid.firstChild);
+        }
         const m = { l: 40, r: 10, t: 10, b: 30 };
         const w = vp.width - m.l - m.r, h = vp.height - m.t - m.b;
         const cols = 5, rows = 5; const cw = w / cols, ch = h / rows;
@@ -135,31 +160,33 @@ export class Visual implements IVisual {
                 this.gGrid.appendChild(rect);
             }
         }
-        // Axes labels derived from dataset domain (default 1..5)
-        let lLabs = ["1","2","3","4","5"] as string[];
-        let cLabs = ["1","2","3","4","5"] as string[];
-        const cat = view && view.categorical as DataViewCategorical;
-        if (cat && cat.categories && cat.categories.length) {
-            // prefer distinct sorted values from measures if provided as categorical
-            const uniq = (arr: any[]) => Array.from(new Set(arr.map(v=>String(v))));
-            const lVals = (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["likelihoodRes"])?.values
-                       || (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["likelihoodInh"])?.values;
-            const cVals = (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["consequenceRes"])?.values
-                       || (cat.values || []).find(v=>v.source.roles && (v.source.roles as any)["consequenceInh"])?.values;
-            if (lVals) lLabs = uniq(lVals).sort((a,b)=>Number(a)-Number(b));
-            if (cVals) cLabs = uniq(cVals).sort((a,b)=>Number(a)-Number(b));
-            lLabs = lLabs.slice(0,5); cLabs = cLabs.slice(0,5);
-        }
+        
+        // FIXED: Always use static 1-5 axis labels for consistent risk matrix framework
+        // X-axis (Likelihood): Always 1,2,3,4,5 from left to right  
+        // Y-axis (Consequence): Always 5,4,3,2,1 from top to bottom
+        // Labels are intentionally FIXED regardless of data to maintain standard risk assessment scale
+        const lLabs = ["1", "2", "3", "4", "5"];
+        const cLabs = ["1", "2", "3", "4", "5"];
+        
+        // Render X-axis labels (Likelihood: 1-5)
         for (let x = 0; x < cols; x++) {
             const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            tx.setAttribute("x", String(m.l + (x + 0.5) * cw)); tx.setAttribute("y", String(vp.height - 8));
-            tx.setAttribute("text-anchor", "middle"); tx.setAttribute("font-size", "10"); tx.textContent = lLabs[x] || String(x + 1);
+            tx.setAttribute("x", String(m.l + (x + 0.5) * cw));
+            tx.setAttribute("y", String(vp.height - 8));
+            tx.setAttribute("text-anchor", "middle");
+            tx.setAttribute("font-size", "10");
+            tx.textContent = lLabs[x];
             this.gGrid.appendChild(tx);
         }
+        
+        // Render Y-axis labels (Consequence: 5,4,3,2,1 from top to bottom)
         for (let y = 0; y < rows; y++) {
             const ty = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            ty.setAttribute("x", String(12)); ty.setAttribute("y", String(m.t + (y + 0.6) * ch));
-            ty.setAttribute("text-anchor", "start"); ty.setAttribute("font-size", "10"); ty.textContent = cLabs[rows - y - 1] || String(rows - y);
+            ty.setAttribute("x", "12");
+            ty.setAttribute("y", String(m.t + (y + 0.6) * ch));
+            ty.setAttribute("text-anchor", "start");
+            ty.setAttribute("font-size", "10");
+            ty.textContent = cLabs[rows - y - 1];
             this.gGrid.appendChild(ty);
         }
     }
@@ -201,7 +228,13 @@ export class Visual implements IVisual {
 
     private renderData(vp: IViewport, data: RiskPoint[]) {
         const sm = this.selectionManager;
-        this.gArrows.innerHTML = ""; this.gPoints.innerHTML = "";
+        // Clear elements safely without innerHTML
+        while (this.gArrows.firstChild) {
+            this.gArrows.removeChild(this.gArrows.firstChild);
+        }
+        while (this.gPoints.firstChild) {
+            this.gPoints.removeChild(this.gPoints.firstChild);
+        }
         const m = { l: 40, r: 10, t: 10, b: 30 };
         const w = vp.width - m.l - m.r, h = vp.height - m.t - m.b;
         const cols = 5, rows = 5; const cw = w / cols, ch = h / rows;
