@@ -58,13 +58,7 @@ export class Visual implements IVisual {
         // clear selection on background click
         // reflect selection state by dimming unselected
         this.selectionManager.registerOnSelectCallback(() => {
-            const hasSel = (this.selectionManager as any).hasSelection && (this.selectionManager as any).hasSelection();
-            const alpha = hasSel ? 0.2 : 1;
-            Array.from(this.gPoints.querySelectorAll('circle')).forEach(el => {
-                const sel = (el as any).__sel as ISelectionId | undefined;
-                const keep = !hasSel || (sel && (this.selectionManager as any).isSelected && (this.selectionManager as any).isSelected(sel));
-                (el as SVGCircleElement).setAttribute('opacity', keep ? '1' : String(alpha));
-            });
+            this.updateSelectionHighlight();
         });
         this.svg.addEventListener("click", (e) => { if (e.target === this.svg) this.selectionManager.clear(); });
     }
@@ -82,20 +76,45 @@ export class Visual implements IVisual {
         return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
     }
 
+    private updateSelectionHighlight() {
+        // Use selection manager's getSelectionIds() to check for selections
+        const selections = this.selectionManager.getSelectionIds();
+        const hasSelection = selections && selections.length > 0;
+        const alpha = hasSelection ? 0.2 : 1;
+        
+        Array.from(this.gPoints.querySelectorAll('circle')).forEach(el => {
+            const sel = (el as any).__sel as ISelectionId | undefined;
+            let isSelected = false;
+            
+            if (hasSelection && sel) {
+                // Check if this element's selection ID matches any selected ID
+                isSelected = selections.some(selectedId => 
+                    selectedId.key === sel.key
+                );
+            }
+            
+            const opacity = !hasSelection || isSelected ? '1' : String(alpha);
+            (el as SVGCircleElement).setAttribute('opacity', opacity);
+        });
+    }
+
     private resize(vp: IViewport) {
         this.svg.setAttribute("width", String(vp.width));
         this.svg.setAttribute("height", String(vp.height));
     }
 
     private getSeverityColor(score: number): string {
-        const low = (this.formattingSettings as any)?.severityCard?.low?.value?.value || "#388e3c";
-        const mod = (this.formattingSettings as any)?.severityCard?.moderate?.value?.value || "#fbc02d";
-        const high = (this.formattingSettings as any)?.severityCard?.high?.value?.value || "#f57c00";
-        const ext = (this.formattingSettings as any)?.severityCard?.extreme?.value?.value || "#d32f2f";
-        const tLow = (this.formattingSettings as any)?.thresholdsCard?.lowMax?.value ?? 4;
-        const tMod = (this.formattingSettings as any)?.thresholdsCard?.moderateMax?.value ?? 9;
-        const tHigh = (this.formattingSettings as any)?.thresholdsCard?.highMax?.value ?? 16;
-        if (score > tHigh) return ext; if (score > tMod) return high; if (score > tLow) return mod; return low;
+        const low = this.formattingSettings.severityCard.low.value.value || "#388e3c";
+        const mod = this.formattingSettings.severityCard.moderate.value.value || "#fbc02d";
+        const high = this.formattingSettings.severityCard.high.value.value || "#f57c00";
+        const ext = this.formattingSettings.severityCard.extreme.value.value || "#d32f2f";
+        const tLow = this.formattingSettings.thresholdsCard.lowMax.value ?? 4;
+        const tMod = this.formattingSettings.thresholdsCard.moderateMax.value ?? 9;
+        const tHigh = this.formattingSettings.thresholdsCard.highMax.value ?? 16;
+        if (score > tHigh) return ext; 
+        if (score > tMod) return high; 
+        if (score > tLow) return mod; 
+        return low;
     }
 
     private renderGrid(vp: IViewport, view?: DataView) {
@@ -195,10 +214,10 @@ export class Visual implements IVisual {
             const end = (d.lRes && d.cRes) ? toXY(d.lRes, d.cRes) : start;
             if (!end) continue;
             const jit = this.stableJitter(d.id, cw, ch);
-            const showArrows = (this.formattingSettings as any)?.arrowsCard?.show?.value !== false;
-            const markerSize = (this.formattingSettings as any)?.markersCard?.size?.value ?? 6;
-            const overrideColor = (this.formattingSettings as any)?.markersCard?.color?.value?.value as string;
-            const finalColor = overrideColor && overrideColor !== "" ? overrideColor : color;
+            const showArrows = this.formattingSettings.arrowsCard.show.value;
+            const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
+            const overrideColor = this.formattingSettings.markersCard.color.value.value;
+            const finalColor = (overrideColor && overrideColor !== "") ? overrideColor : color;
             if (showArrows && start && (start.x !== end.x || start.y !== end.y)) {
                 const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
                 line.setAttribute("x1", String(start.x)); line.setAttribute("y1", String(start.y));
@@ -206,9 +225,9 @@ export class Visual implements IVisual {
                 line.setAttribute("stroke", "#666"); line.setAttribute("stroke-width", "1.5"); line.setAttribute("marker-end", "url(#arrow)");
                 this.gArrows.appendChild(line);
             }
-            const showLabels = (this.formattingSettings as any)?.labelsCard?.show?.value === true;
-            const labelSize = (this.formattingSettings as any)?.labelsCard?.fontSize?.value ?? 10;
-            const showTooltips = (this.formattingSettings as any)?.tooltipsCard?.show?.value !== false;
+            const showLabels = this.formattingSettings.labelsCard.show.value;
+            const labelSize = this.formattingSettings.labelsCard.fontSize.value ?? 10;
+            const showTooltips = this.formattingSettings.tooltipsCard.show.value;
             if (start) {
                 const c1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                 c1.setAttribute("cx", String(start.x + jit.dx)); c1.setAttribute("cy", String(start.y + jit.dy));

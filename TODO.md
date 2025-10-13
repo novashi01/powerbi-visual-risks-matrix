@@ -8,6 +8,13 @@
 - [x] Interactivity: selection identities per Risk ID; click-to-select; background clear; multi-select with Ctrl/Cmd
 - [x] Cross-filter integration feedback: dim unselected points on external selection
 - [x] Performance: basic data reduction cap (max 1000 rows); avoid reflow on clear
+- [x] Code quality: Fixed type safety issues, removed `as any` casting, proper selection manager API usage
 - [ ] Testing: unit tests for data mapping and severity banding; visual regression baseline
 - [ ] Docs: add screenshots/gifs; sample dataset; full data roles in README
 - [ ] CI: GitHub Actions build + package; lint on PR
+
+## Recent Fixes (Applied after remote merge)
+- Removed unsafe selection manager private API usage
+- Fixed type casting issues throughout codebase
+- Added proper `updateSelectionHighlight()` method using public APIs
+- Improved type safety in formatting settings access
