@@ -14,3 +14,9 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Testing
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
