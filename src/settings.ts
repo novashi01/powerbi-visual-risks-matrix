@@ -105,8 +105,57 @@ class ThresholdsCardSettings extends FormattingSettingsCard {
 }
 
 class AxesCardSettings extends FormattingSettingsCard {
-    name: string = "axes"; displayName: string = "Axis labels";
-    slices: Array<FormattingSettingsSlice> = [];
+    // X-Axis (Likelihood) Labels
+    xLabel1 = new formattingSettings.TextInput({ name: "xLabel1", displayName: "X-axis label 1", value: "1", placeholder: "1" });
+    xLabel2 = new formattingSettings.TextInput({ name: "xLabel2", displayName: "X-axis label 2", value: "2", placeholder: "2" });
+    xLabel3 = new formattingSettings.TextInput({ name: "xLabel3", displayName: "X-axis label 3", value: "3", placeholder: "3" });
+    xLabel4 = new formattingSettings.TextInput({ name: "xLabel4", displayName: "X-axis label 4", value: "4", placeholder: "4" });
+    xLabel5 = new formattingSettings.TextInput({ name: "xLabel5", displayName: "X-axis label 5", value: "5", placeholder: "5" });
+    
+    // Y-Axis (Consequence) Labels  
+    yLabel1 = new formattingSettings.TextInput({ name: "yLabel1", displayName: "Y-axis label 1", value: "1", placeholder: "1" });
+    yLabel2 = new formattingSettings.TextInput({ name: "yLabel2", displayName: "Y-axis label 2", value: "2", placeholder: "2" });
+    yLabel3 = new formattingSettings.TextInput({ name: "yLabel3", displayName: "Y-axis label 3", value: "3", placeholder: "3" });
+    yLabel4 = new formattingSettings.TextInput({ name: "yLabel4", displayName: "Y-axis label 4", value: "4", placeholder: "4" });
+    yLabel5 = new formattingSettings.TextInput({ name: "yLabel5", displayName: "Y-axis label 5", value: "5", placeholder: "5" });
+    
+    // Axis Configuration
+    showXLabels = new formattingSettings.ToggleSwitch({ name: "showXLabels", displayName: "Show X-axis labels", value: true });
+    showYLabels = new formattingSettings.ToggleSwitch({ name: "showYLabels", displayName: "Show Y-axis labels", value: true });
+    
+    // Font Size
+    xAxisFontSize = new formattingSettings.NumUpDown({ 
+        name: "xAxisFontSize", 
+        displayName: "X-axis font size", 
+        value: 10,
+        options: { minValue: { value: 8, type: powerbi.visuals.ValidatorType.Min }, maxValue: { value: 24, type: powerbi.visuals.ValidatorType.Max } }
+    });
+    yAxisFontSize = new formattingSettings.NumUpDown({ 
+        name: "yAxisFontSize", 
+        displayName: "Y-axis font size", 
+        value: 10,
+        options: { minValue: { value: 8, type: powerbi.visuals.ValidatorType.Min }, maxValue: { value: 24, type: powerbi.visuals.ValidatorType.Max } }
+    });
+    
+    // Y-Axis Orientation
+    yAxisOrientation = new formattingSettings.ItemDropdown({
+        name: "yAxisOrientation",
+        displayName: "Y-axis text orientation",
+        items: [
+            { displayName: "Horizontal", value: "horizontal" },
+            { displayName: "Vertical", value: "vertical" }
+        ],
+        value: { displayName: "Horizontal", value: "horizontal" }
+    });
+    
+    name: string = "axes";
+    displayName: string = "Axis Labels";
+    slices: Array<FormattingSettingsSlice> = [
+        this.showXLabels, this.showYLabels,
+        this.xAxisFontSize, this.yAxisFontSize, this.yAxisOrientation,
+        this.xLabel1, this.xLabel2, this.xLabel3, this.xLabel4, this.xLabel5,
+        this.yLabel1, this.yLabel2, this.yLabel3, this.yLabel4, this.yLabel5
+    ];
 }
 
 class MarkersCardSettings extends FormattingSettingsCard {
@@ -125,8 +174,32 @@ class LabelsCardSettings extends FormattingSettingsCard {
 
 class ArrowsCardSettings extends FormattingSettingsCard {
     show = new formattingSettings.ToggleSwitch({ name: "show", displayName: "Show arrows", value: true });
-    name: string = "arrows"; displayName: string = "Arrows";
-    slices: Array<FormattingSettingsSlice> = [this.show];
+    
+    // Arrow Size Control
+    arrowSize = new formattingSettings.NumUpDown({
+        name: "arrowSize",
+        displayName: "Arrow size", 
+        value: 8,
+        options: { 
+            minValue: { value: 4, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 20, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+    
+    // Distance from markers
+    arrowDistance = new formattingSettings.NumUpDown({
+        name: "arrowDistance",
+        displayName: "Distance from markers",
+        value: 5,
+        options: {
+            minValue: { value: 2, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 15, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+    
+    name: string = "arrows"; 
+    displayName: string = "Arrows";
+    slices: Array<FormattingSettingsSlice> = [this.show, this.arrowSize, this.arrowDistance];
 }
 
 class TooltipsCardSettings extends FormattingSettingsCard {
@@ -139,6 +212,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     dataPointCard = new DataPointCardSettings();
     severityCard = new SeverityCardSettings();
     thresholdsCard = new ThresholdsCardSettings();
+    axesCard = new AxesCardSettings();
     markersCard = new MarkersCardSettings();
     labelsCard = new LabelsCardSettings();
     arrowsCard = new ArrowsCardSettings();
@@ -149,6 +223,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
         this.dataPointCard,
         this.severityCard,
         this.thresholdsCard,
+        this.axesCard,
         this.markersCard,
         this.labelsCard,
         this.arrowsCard,

@@ -107,12 +107,13 @@ describe('Visual Integration Tests', () => {
       const maxItems = 1000;
       
       // Generate test dataset larger than limit
+      // Generate deterministic test data (avoiding Math.random for security)
       const largeDataset = Array.from({ length: 1500 }, (_, i) => ({
         id: `RISK-${String(i + 1).padStart(4, '0')}`,
-        lInh: Math.ceil(Math.random() * 5),
-        cInh: Math.ceil(Math.random() * 5),
-        lRes: Math.ceil(Math.random() * 5),
-        cRes: Math.ceil(Math.random() * 5)
+        lInh: (i % 5) + 1, // Deterministic values 1-5
+        cInh: ((i + 1) % 5) + 1,
+        lRes: ((i + 2) % 5) + 1,
+        cRes: ((i + 3) % 5) + 1
       }));
 
       // Simulate the data reduction logic

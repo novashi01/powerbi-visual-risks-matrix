@@ -48,18 +48,10 @@ export class Visual implements IVisual {
         this.gArrows = document.createElementNS("http://www.w3.org/2000/svg", "g");
         this.gPoints = document.createElementNS("http://www.w3.org/2000/svg", "g");
         const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-        const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
-        marker.setAttribute("id", "arrow");
-        marker.setAttribute("orient", "auto");
-        marker.setAttribute("markerWidth", "8");
-        marker.setAttribute("markerHeight", "8");
-        marker.setAttribute("refX", "8");
-        marker.setAttribute("refY", "4");
-        const mpath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        mpath.setAttribute("d", "M0,0 L8,4 L0,8 Z");
-        mpath.setAttribute("fill", "#333");
-        marker.appendChild(mpath);
-        defs.appendChild(marker);
+        
+        // Initial arrow marker with default size (will be updated in update method)
+        this.createArrowMarker(defs, 8);
+        
         this.svg.appendChild(defs);
         this.svg.appendChild(this.gGrid);
         this.svg.appendChild(this.gArrows);
@@ -86,6 +78,14 @@ export class Visual implements IVisual {
     public update(options: VisualUpdateOptions) {
         const view = options.dataViews && options.dataViews[0];
         this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
+        
+        // Update arrow marker with current settings
+        const arrowSize = this.formattingSettings.arrowsCard.arrowSize.value || 8;
+        const defs = this.svg.querySelector('defs') as SVGDefsElement;
+        if (defs) {
+            this.createArrowMarker(defs, arrowSize);
+        }
+        
         const vp = options.viewport;
         this.resize(vp);
         this.renderGrid(vp, view);
@@ -161,33 +161,64 @@ export class Visual implements IVisual {
             }
         }
         
-        // FIXED: Always use static 1-5 axis labels for consistent risk matrix framework
-        // X-axis (Likelihood): Always 1,2,3,4,5 from left to right  
-        // Y-axis (Consequence): Always 5,4,3,2,1 from top to bottom
-        // Labels are intentionally FIXED regardless of data to maintain standard risk assessment scale
-        const lLabs = ["1", "2", "3", "4", "5"];
-        const cLabs = ["1", "2", "3", "4", "5"];
+        // Get customizable axis labels from settings
+        const settings = this.formattingSettings?.axesCard;
+        const lLabs = [
+            settings?.xLabel1?.value || "1",
+            settings?.xLabel2?.value || "2", 
+            settings?.xLabel3?.value || "3",
+            settings?.xLabel4?.value || "4",
+            settings?.xLabel5?.value || "5"
+        ];
+        const cLabs = [
+            settings?.yLabel1?.value || "1",
+            settings?.yLabel2?.value || "2",
+            settings?.yLabel3?.value || "3", 
+            settings?.yLabel4?.value || "4",
+            settings?.yLabel5?.value || "5"
+        ];
         
-        // Render X-axis labels (Likelihood: 1-5)
-        for (let x = 0; x < cols; x++) {
-            const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            tx.setAttribute("x", String(m.l + (x + 0.5) * cw));
-            tx.setAttribute("y", String(vp.height - 8));
-            tx.setAttribute("text-anchor", "middle");
-            tx.setAttribute("font-size", "10");
-            tx.textContent = lLabs[x];
-            this.gGrid.appendChild(tx);
+        const showXLabels = settings?.showXLabels?.value !== false;
+        const showYLabels = settings?.showYLabels?.value !== false;
+        const xFontSize = settings?.xAxisFontSize?.value || 10;
+        const yFontSize = settings?.yAxisFontSize?.value || 10;
+        const yOrientation = settings?.yAxisOrientation?.value?.value || "horizontal";
+        
+        // Render X-axis labels (Likelihood: custom labels)
+        if (showXLabels) {
+            for (let x = 0; x < cols; x++) {
+                const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                tx.setAttribute("x", String(m.l + (x + 0.5) * cw));
+                tx.setAttribute("y", String(vp.height - 8));
+                tx.setAttribute("text-anchor", "middle");
+                tx.setAttribute("font-size", String(xFontSize));
+                tx.textContent = lLabs[x];
+                this.gGrid.appendChild(tx);
+            }
         }
         
-        // Render Y-axis labels (Consequence: 5,4,3,2,1 from top to bottom)
-        for (let y = 0; y < rows; y++) {
-            const ty = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            ty.setAttribute("x", "12");
-            ty.setAttribute("y", String(m.t + (y + 0.6) * ch));
-            ty.setAttribute("text-anchor", "start");
-            ty.setAttribute("font-size", "10");
-            ty.textContent = cLabs[rows - y - 1];
-            this.gGrid.appendChild(ty);
+        // Render Y-axis labels (Consequence: custom labels with orientation)
+        if (showYLabels) {
+            for (let y = 0; y < rows; y++) {
+                const ty = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                
+                if (yOrientation === "vertical") {
+                    // Vertical text orientation
+                    ty.setAttribute("x", "25");
+                    ty.setAttribute("y", String(m.t + (y + 0.5) * ch));
+                    ty.setAttribute("text-anchor", "middle");
+                    ty.setAttribute("transform", `rotate(-90, 25, ${m.t + (y + 0.5) * ch})`);
+                } else {
+                    // Horizontal text orientation (default)
+                    ty.setAttribute("x", "12");
+                    ty.setAttribute("y", String(m.t + (y + 0.6) * ch));
+                    ty.setAttribute("text-anchor", "start");
+                }
+                
+                ty.setAttribute("font-size", String(yFontSize));
+                ty.textContent = cLabs[rows - y - 1]; // Display from 5 to 1 (top to bottom)
+                this.gGrid.appendChild(ty);
+            }
         }
     }
 
@@ -248,14 +279,26 @@ export class Visual implements IVisual {
             if (!end) continue;
             const jit = this.stableJitter(d.id, cw, ch);
             const showArrows = this.formattingSettings.arrowsCard.show.value;
+            const arrowDistance = this.formattingSettings.arrowsCard.arrowDistance.value || 5;
             const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
             const overrideColor = this.formattingSettings.markersCard.color.value.value;
             const finalColor = (overrideColor && overrideColor !== "") ? overrideColor : color;
             if (showArrows && start && (start.x !== end.x || start.y !== end.y)) {
+                // Calculate adjusted positions with distance from markers
+                const adjustedPos = this.calculateArrowPosition(
+                    { x: start.x, y: start.y },
+                    { x: end.x, y: end.y },
+                    arrowDistance
+                );
+                
                 const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                line.setAttribute("x1", String(start.x)); line.setAttribute("y1", String(start.y));
-                line.setAttribute("x2", String(end.x)); line.setAttribute("y2", String(end.y));
-                line.setAttribute("stroke", "#666"); line.setAttribute("stroke-width", "1.5"); line.setAttribute("marker-end", "url(#arrow)");
+                line.setAttribute("x1", String(adjustedPos.start.x)); 
+                line.setAttribute("y1", String(adjustedPos.start.y));
+                line.setAttribute("x2", String(adjustedPos.end.x)); 
+                line.setAttribute("y2", String(adjustedPos.end.y));
+                line.setAttribute("stroke", "#666"); 
+                line.setAttribute("stroke-width", "1.5"); 
+                line.setAttribute("marker-end", "url(#arrow)");
                 this.gArrows.appendChild(line);
             }
             const showLabels = this.formattingSettings.labelsCard.show.value;
@@ -286,5 +329,55 @@ export class Visual implements IVisual {
                 }
             }
         }
+    }
+
+    private createArrowMarker(defs: SVGDefsElement, arrowSize: number) {
+        // Remove existing marker if it exists
+        const existingMarker = defs.querySelector('#arrow');
+        if (existingMarker) {
+            existingMarker.remove();
+        }
+        
+        // Create new marker with custom size
+        const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+        marker.setAttribute("id", "arrow");
+        marker.setAttribute("orient", "auto");
+        marker.setAttribute("markerWidth", String(arrowSize));
+        marker.setAttribute("markerHeight", String(arrowSize));
+        marker.setAttribute("refX", String(arrowSize));
+        marker.setAttribute("refY", String(arrowSize / 2));
+        
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", `M0,0 L${arrowSize},${arrowSize/2} L0,${arrowSize} Z`);
+        path.setAttribute("fill", "#333");
+        
+        marker.appendChild(path);
+        defs.appendChild(marker);
+    }
+
+    private calculateArrowPosition(start: { x: number, y: number }, end: { x: number, y: number }, distance: number): { start: { x: number, y: number }, end: { x: number, y: number } } {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        
+        if (length === 0) {
+            return { start, end };
+        }
+        
+        // Calculate unit vector
+        const unitX = dx / length;
+        const unitY = dy / length;
+        
+        // Adjust start and end points by distance
+        return {
+            start: {
+                x: start.x + unitX * distance,
+                y: start.y + unitY * distance
+            },
+            end: {
+                x: end.x - unitX * distance,
+                y: end.y - unitY * distance
+            }
+        };
     }
 }
