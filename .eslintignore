@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.tmp/
+coverage/
+*.test.ts
+*.spec.ts
+test-data.ts
+jest.config.js
+jest.setup.js
+playwright.config.ts
+PACKAGING-*.md
+TEST-*.md

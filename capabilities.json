@@ -36,8 +36,27 @@
       }
     },
     "axes": {
-      "displayName": "Axis labels",
-      "properties": {}
+      "displayName": "Axis Labels",
+      "properties": {
+        "showXLabels": { "displayName": "Show X-axis labels", "type": { "bool": true } },
+        "showYLabels": { "displayName": "Show Y-axis labels", "type": { "bool": true } },
+        "xAxisFontSize": { "displayName": "X-axis font size", "type": { "numeric": true } },
+        "yAxisFontSize": { "displayName": "Y-axis font size", "type": { "numeric": true } },
+        "yAxisOrientation": { "displayName": "Y-axis text orientation", "type": { "enumeration": [
+          { "displayName": "Horizontal", "value": "horizontal" },
+          { "displayName": "Vertical", "value": "vertical" }
+        ] } },
+        "xLabel1": { "displayName": "X-axis label 1", "type": { "text": true } },
+        "xLabel2": { "displayName": "X-axis label 2", "type": { "text": true } },
+        "xLabel3": { "displayName": "X-axis label 3", "type": { "text": true } },
+        "xLabel4": { "displayName": "X-axis label 4", "type": { "text": true } },
+        "xLabel5": { "displayName": "X-axis label 5", "type": { "text": true } },
+        "yLabel1": { "displayName": "Y-axis label 1", "type": { "text": true } },
+        "yLabel2": { "displayName": "Y-axis label 2", "type": { "text": true } },
+        "yLabel3": { "displayName": "Y-axis label 3", "type": { "text": true } },
+        "yLabel4": { "displayName": "Y-axis label 4", "type": { "text": true } },
+        "yLabel5": { "displayName": "Y-axis label 5", "type": { "text": true } }
+      }
     },
     "markers": {
       "displayName": "Markers",
@@ -56,7 +75,9 @@
     "arrows": {
       "displayName": "Arrows",
       "properties": {
-        "show": { "displayName": "Show arrows", "type": { "bool": true } }
+        "show": { "displayName": "Show arrows", "type": { "bool": true } },
+        "arrowSize": { "displayName": "Arrow size", "type": { "numeric": true } },
+        "arrowDistance": { "displayName": "Distance from markers", "type": { "numeric": true } }
       }
     },
     "tooltips": {
@@ -76,18 +97,22 @@
   "dataViewMappings": [
     {
       "categorical": {
-        "categories": [
-          { "for": { "in": "riskId" }, "dataReductionAlgorithm": { "top": {} } },
-          { "for": { "in": "category" }, "dataReductionAlgorithm": { "top": {} } }
-        ],
+        "categories": {
+          "for": { "in": "riskId" },
+          "dataReductionAlgorithm": { "top": {} }
+        },
         "values": {
-          "select": [
-            { "bind": { "to": "likelihoodInh" } },
-            { "bind": { "to": "consequenceInh" } },
-            { "bind": { "to": "likelihoodRes" } },
-            { "bind": { "to": "consequenceRes" } },
-            { "bind": { "to": "tooltips" } }
-          ]
+          "group": {
+            "by": "category",
+            "select": [
+              { "bind": { "to": "likelihoodInh" } },
+              { "bind": { "to": "consequenceInh" } },
+              { "bind": { "to": "likelihoodRes" } },
+              { "bind": { "to": "consequenceRes" } },
+              { "bind": { "to": "tooltips" } }
+            ],
+            "dataReductionAlgorithm": { "top": {} }
+          }
         }
       }
     }
