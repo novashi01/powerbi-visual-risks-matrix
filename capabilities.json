@@ -77,7 +77,9 @@
       "properties": {
         "show": { "displayName": "Show arrows", "type": { "bool": true } },
         "arrowSize": { "displayName": "Arrow size", "type": { "numeric": true } },
-        "arrowDistance": { "displayName": "Distance from markers", "type": { "numeric": true } }
+        "arrowDistance": { "displayName": "Distance from markers", "type": { "numeric": true } },
+        "arrowColor": { "displayName": "Arrow color", "type": { "fill": { "solid": { "color": true } } } },
+        "arrowTransparency": { "displayName": "Arrow transparency (%)", "type": { "numeric": true } }
       }
     },
     "tooltips": {
@@ -91,6 +93,34 @@
       "properties": {
         "enabled": { "displayName": "Enable animation", "type": { "bool": true } },
         "durationMs": { "displayName": "Duration (ms)", "type": { "numeric": true } }
+      }
+    },
+    "matrixGrid": {
+      "displayName": "Matrix Grid",
+      "properties": {
+        "matrixRows": { "displayName": "Matrix rows", "type": { "numeric": true } },
+        "matrixColumns": { "displayName": "Matrix columns", "type": { "numeric": true } }
+      }
+    },
+    "riskMarkersLayout": {
+      "displayName": "Risk Markers Layout",
+      "properties": {
+        "layoutMode": { 
+          "displayName": "Positioning mode", 
+          "type": { 
+            "enumeration": [
+              { "displayName": "Organized Grid", "value": "organized" },
+              { "displayName": "Random Scatter", "value": "scatter" },
+              { "displayName": "Centered", "value": "centered" }
+            ]
+          }
+        },
+        "markerRows": { "displayName": "Marker rows (per cell)", "type": { "numeric": true } },
+        "markerColumns": { "displayName": "Marker columns (per cell)", "type": { "numeric": true } },
+        "cellPadding": { "displayName": "Cell padding", "type": { "numeric": true } },
+        "showInherentInOrganized": { "displayName": "Show inherent risks", "type": { "bool": true } },
+        "inherentTransparency": { "displayName": "Inherent transparency (%)", "type": { "numeric": true } },
+        "organizedArrows": { "displayName": "Show arrows in organized mode", "type": { "bool": true } }
       }
     }
   },

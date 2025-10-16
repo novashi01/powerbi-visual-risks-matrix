@@ -12,7 +12,7 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
-    '!src/**/*.test.ts',
+    '!test/**/*.test.ts',
     '!src/**/*.spec.ts',
     '!src/test-data.ts'
   ],
