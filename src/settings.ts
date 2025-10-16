@@ -161,8 +161,36 @@ class AxesCardSettings extends FormattingSettingsCard {
 class MarkersCardSettings extends FormattingSettingsCard {
     size = new formattingSettings.NumUpDown({ name: "size", displayName: "Marker size", value: 6 });
     color = new formattingSettings.ColorPicker({ name: "color", displayName: "Marker color override", value: { value: "" } });
+    
+    // Border customization
+    borderColor = new formattingSettings.ColorPicker({
+        name: "borderColor",
+        displayName: "Border color",
+        value: { value: "#111111" }
+    });
+    
+    borderWidth = new formattingSettings.NumUpDown({
+        name: "borderWidth",
+        displayName: "Border width",
+        value: 1,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 5, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+    
+    borderTransparency = new formattingSettings.NumUpDown({
+        name: "borderTransparency",
+        displayName: "Border transparency (%)",
+        value: 100,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 100, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+    
     name: string = "markers"; displayName: string = "Markers";
-    slices: Array<FormattingSettingsSlice> = [this.size, this.color];
+    slices: Array<FormattingSettingsSlice> = [this.size, this.color, this.borderColor, this.borderWidth, this.borderTransparency];
 }
 
 class LabelsCardSettings extends FormattingSettingsCard {
@@ -186,26 +214,154 @@ class ArrowsCardSettings extends FormattingSettingsCard {
         }
     });
     
-    // Distance from markers
+    // Distance from markers (increased max to 50)
     arrowDistance = new formattingSettings.NumUpDown({
         name: "arrowDistance",
         displayName: "Distance from markers",
         value: 5,
         options: {
             minValue: { value: 2, type: powerbi.visuals.ValidatorType.Min },
-            maxValue: { value: 15, type: powerbi.visuals.ValidatorType.Max }
+            maxValue: { value: 50, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+    
+    // Arrow color
+    arrowColor = new formattingSettings.ColorPicker({
+        name: "arrowColor",
+        displayName: "Arrow color",
+        value: { value: "#666666" }
+    });
+    
+    // Arrow transparency
+    arrowTransparency = new formattingSettings.NumUpDown({
+        name: "arrowTransparency",
+        displayName: "Arrow transparency (%)",
+        value: 100,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 100, type: powerbi.visuals.ValidatorType.Max }
         }
     });
     
     name: string = "arrows"; 
     displayName: string = "Arrows";
-    slices: Array<FormattingSettingsSlice> = [this.show, this.arrowSize, this.arrowDistance];
+    slices: Array<FormattingSettingsSlice> = [this.show, this.arrowSize, this.arrowDistance, this.arrowColor, this.arrowTransparency];
 }
 
 class TooltipsCardSettings extends FormattingSettingsCard {
     show = new formattingSettings.ToggleSwitch({ name: "show", displayName: "Show tooltips", value: true });
     name: string = "tooltips"; displayName: string = "Tooltips";
     slices: Array<FormattingSettingsSlice> = [this.show];
+}
+
+class MatrixGridCardSettings extends FormattingSettingsCard {
+    matrixRows = new formattingSettings.NumUpDown({
+        name: "matrixRows",
+        displayName: "Matrix rows",
+        value: 3,
+        options: {
+            minValue: { value: 2, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 10, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    matrixColumns = new formattingSettings.NumUpDown({
+        name: "matrixColumns",
+        displayName: "Matrix columns",
+        value: 3,
+        options: {
+            minValue: { value: 2, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 10, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    name: string = "matrixGrid";
+    displayName: string = "Matrix Grid";
+    slices: Array<FormattingSettingsSlice> = [this.matrixRows, this.matrixColumns];
+}
+
+class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
+    layoutMode = new formattingSettings.ItemDropdown({
+        name: "layoutMode",
+        displayName: "Positioning mode",
+        items: [
+            { displayName: "Organized Grid", value: "organized" },
+            { displayName: "Random Scatter", value: "scatter" },
+            { displayName: "Centered", value: "centered" }
+        ],
+        value: { displayName: "Organized Grid", value: "organized" }
+    });
+
+    markerRows = new formattingSettings.NumUpDown({
+        name: "markerRows",
+        displayName: "Marker rows (per cell)",
+        value: 3,
+        options: {
+            minValue: { value: 1, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 10, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    markerColumns = new formattingSettings.NumUpDown({
+        name: "markerColumns",
+        displayName: "Marker columns (per cell)",
+        value: 3,
+        options: {
+            minValue: { value: 1, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 10, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    cellPadding = new formattingSettings.NumUpDown({
+        name: "cellPadding",
+        displayName: "Cell padding",
+        value: 5,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 20, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+    
+    enableScrolling = new formattingSettings.ToggleSwitch({
+        name: "enableScrolling",
+        displayName: "Show all markers (overflow hidden by clipPath, no interactive scroll)",
+        value: false
+    });
+
+    showInherentInOrganized = new formattingSettings.ToggleSwitch({
+        name: "showInherentInOrganized",
+        displayName: "Show inherent risks",
+        value: true
+    });
+
+    inherentTransparency = new formattingSettings.NumUpDown({
+        name: "inherentTransparency",
+        displayName: "Inherent transparency (%)",
+        value: 50,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 100, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    organizedArrows = new formattingSettings.ToggleSwitch({
+        name: "organizedArrows",
+        displayName: "Show arrows in organized mode",
+        value: true
+    });
+
+    name: string = "riskMarkersLayout";
+    displayName: string = "Risk Markers Layout";
+    slices: Array<FormattingSettingsSlice> = [
+        this.layoutMode,
+        this.markerRows,
+        this.markerColumns,
+        this.cellPadding,
+        this.enableScrolling,
+        this.showInherentInOrganized,
+        this.inherentTransparency,
+        this.organizedArrows
+    ];
 }
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
@@ -218,6 +374,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     arrowsCard = new ArrowsCardSettings();
     tooltipsCard = new TooltipsCardSettings();
     animationCard = new AnimationCardSettings();
+    matrixGridCard = new MatrixGridCardSettings();
+    riskMarkersLayoutCard = new RiskMarkersLayoutCardSettings();
 
     cards = [
         this.dataPointCard,
@@ -228,6 +386,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
         this.labelsCard,
         this.arrowsCard,
         this.tooltipsCard,
-        this.animationCard
+        this.animationCard,
+        this.matrixGridCard,
+        this.riskMarkersLayoutCard
     ];
 }
