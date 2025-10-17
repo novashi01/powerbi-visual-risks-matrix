@@ -65,7 +65,32 @@
       "displayName": "Markers",
       "properties": {
         "size": { "displayName": "Marker size", "type": { "numeric": true } },
-        "color": { "displayName": "Marker color override", "type": { "fill": { "solid": { "color": true } } } }
+        "color": { "displayName": "Marker color override", "type": { "fill": { "solid": { "color": true } } } },
+        "borderColor": { "displayName": "Border color", "type": { "fill": { "solid": { "color": true } } } },
+        "borderWidth": { "displayName": "Border width", "type": { "numeric": true } },
+        "borderTransparency": { "displayName": "Border transparency (%)", "type": { "numeric": true } },
+        "shape": {
+          "displayName": "Marker Shape",
+          "type": {
+            "enumeration": [
+              { "displayName": "Round", "value": "round" },
+              { "displayName": "Rectangle", "value": "rectangle" },
+              { "displayName": "Rounded Rectangle", "value": "roundedRectangle" }
+            ]
+          }
+        },
+        "labelSize": {
+          "displayName": "Label Size",
+          "type": { "numeric": true }
+        },
+        "hoverEffect": {
+          "displayName": "Enable Hover Effect",
+          "type": { "bool": true }
+        },
+        "clickEffect": {
+          "displayName": "Enable Click Effect",
+          "type": { "bool": true }
+        }
       }
     },
     "labels": {

@@ -1,8 +1,8 @@
-# Power BI Risk Matrix - Implementation Summary v1.2.0
+# Power BI Risk Matrix - Implementation Summary v1.3.3
 
 ## 🎯 Project Status: COMPLETED SUCCESSFULLY
 
-All requested features have been implemented and tested. The Power BI Risk Matrix visual is now ready for v1.2.0 release with enhanced arrow customization capabilities.
+All requested features have been implemented and tested. The Power BI Risk Matrix visual is now ready for v1.3.3 release with enhanced marker customization capabilities.
 
 ## ✅ Completed Implementations
 
@@ -90,6 +90,34 @@ class ArrowsCardSettings {
 - `AXIS-IMPROVEMENTS-PLAN.md` - Implementation roadmap
 - `README.md` - Updated feature descriptions
 - `TODO.md` - Marked completed features
+
+### 8. Implemented Marker Customization Features
+**Feature**: Customizable markers with interactive features
+
+**Implementation**:
+- Added new properties to `MarkersCardSettings`:
+  - `shape`: Dropdown for marker shapes (Round, Rectangle, Rounded Rectangle).
+  - `labelSize`: NumUpDown for text size (5-16).
+  - `hoverEffect`: Toggle for hover effects.
+  - `clickEffect`: Toggle for click effects.
+- Updated `renderSingleMarkerToGroup` to:
+  - Render markers based on the selected shape.
+  - Add labels inside markers with adjustable text size.
+  - Implement hover and click effects.
+
+**Files Modified**:
+- `src/settings.ts` - Added new properties to `MarkersCardSettings`
+- `src/visual.ts` - Updated rendering logic for markers
+- `capabilities.json` - Added new properties under the `markers` object
+
+### 9. Testing Enhancements
+- Added unit tests in `test-layout-settings.js` to validate:
+  - Correct rendering of marker shapes.
+  - Proper display of labels with specified text size.
+  - Functionality of hover and click effects.
+
+### 10. Documentation Updates
+- Updated `README.md` and `DEV-CONTEXT-MENU.md` with details about the new settings and their usage.
 
 ## 🏗️ Technical Architecture
 
@@ -240,9 +268,9 @@ New "Arrows" section with:
 
 ## 🎊 Project Completion Statement
 
-**The Power BI Risk Matrix v1.2.0 implementation is COMPLETE and ready for release.**
+**The Power BI Risk Matrix v1.3.3 implementation is COMPLETE and ready for release.**
 
-All requested features have been successfully implemented with high-quality code, comprehensive testing, and detailed documentation. The visual now provides users with full arrow customization capabilities while maintaining excellent performance and reliability.
+All requested features have been successfully implemented with high-quality code, comprehensive testing, and detailed documentation. The visual now provides users with full arrow and marker customization capabilities while maintaining excellent performance and reliability.
 
 **Key Achievements:**
 - ✅ Arrow size customization (4-20px)
@@ -252,5 +280,6 @@ All requested features have been successfully implemented with high-quality code
 - ✅ Updated documentation and version management
 - ✅ Performance optimized implementation
 - ✅ Full Power BI integration
+- ✅ Customizable marker shapes and interactive features
 
 **Ready for production deployment with confidence! 🚀**

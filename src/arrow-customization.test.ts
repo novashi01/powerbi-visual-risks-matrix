@@ -26,11 +26,9 @@ describe('Arrow Customization', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Setup DOM mocks
-    global.document = {
-      createElementNS: jest.fn()
-    } as any;
+    jest.spyOn(document, 'createElementNS').mockImplementation(jest.fn());
 
     (document.createElementNS as jest.Mock)
       .mockReturnValueOnce(mockMarker)
@@ -42,7 +40,7 @@ describe('Arrow Customization', () => {
   describe('Arrow Size Calculation', () => {
     test('should create markers with custom size', () => {
       const arrowSize = 12;
-      
+
       // Simulate the createArrowMarker method logic
       const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
       marker.setAttribute("id", "arrow");
@@ -61,7 +59,7 @@ describe('Arrow Customization', () => {
 
     test('should create path with correct dimensions', () => {
       const arrowSize = 10;
-      
+
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       const expectedPath = `M0,0 L${arrowSize},${arrowSize/2} L0,${arrowSize} Z`;
       path.setAttribute("d", expectedPath);
@@ -73,19 +71,19 @@ describe('Arrow Customization', () => {
 
     test('should handle minimum arrow size', () => {
       const arrowSize = 4; // Minimum allowed size
-      
+
       const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
       marker.setAttribute("markerWidth", String(arrowSize));
-      
+
       expect(marker.setAttribute).toHaveBeenCalledWith("markerWidth", "4");
     });
 
     test('should handle maximum arrow size', () => {
       const arrowSize = 20; // Maximum allowed size
-      
+
       const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
       marker.setAttribute("markerWidth", String(arrowSize));
-      
+
       expect(marker.setAttribute).toHaveBeenCalledWith("markerWidth", "20");
     });
   });
@@ -93,21 +91,21 @@ describe('Arrow Customization', () => {
   describe('Arrow Distance Calculation', () => {
     // Helper function to simulate calculateArrowPosition
     function calculateArrowPosition(
-      start: { x: number, y: number }, 
-      end: { x: number, y: number }, 
+      start: { x: number, y: number },
+      end: { x: number, y: number },
       distance: number
     ): { start: { x: number, y: number }, end: { x: number, y: number } } {
       const dx = end.x - start.x;
       const dy = end.y - start.y;
       const length = Math.sqrt(dx * dx + dy * dy);
-      
+
       if (length === 0) {
         return { start, end };
       }
-      
+
       const unitX = dx / length;
       const unitY = dy / length;
-      
+
       return {
         start: {
           x: start.x + unitX * distance,
@@ -205,15 +203,15 @@ describe('Arrow Customization', () => {
   describe('Arrow Settings Validation', () => {
     test('should use default arrow size when value is undefined', () => {
       const defaultArrowSize = 8;
-      const arrowSize = undefined || defaultArrowSize;
-      
+      const arrowSize = defaultArrowSize; // Removed redundant undefined check
+
       expect(arrowSize).toBe(8);
     });
 
     test('should use default distance when value is undefined', () => {
       const defaultDistance = 5;
-      const distance = undefined || defaultDistance;
-      
+      const distance = defaultDistance; // Removed redundant undefined check
+
       expect(distance).toBe(5);
     });
 
@@ -221,10 +219,10 @@ describe('Arrow Customization', () => {
       const minSize = 4;
       const maxSize = 20;
       const testSizes = [3, 4, 12, 20, 25];
-      
+
       testSizes.forEach(size => {
         const clampedSize = Math.max(minSize, Math.min(maxSize, size));
-        
+
         if (size < minSize) {
           expect(clampedSize).toBe(minSize);
         } else if (size > maxSize) {
@@ -239,10 +237,10 @@ describe('Arrow Customization', () => {
       const minDistance = 2;
       const maxDistance = 15;
       const testDistances = [1, 2, 8, 15, 20];
-      
+
       testDistances.forEach(distance => {
         const clampedDistance = Math.max(minDistance, Math.min(maxDistance, distance));
-        
+
         if (distance < minDistance) {
           expect(clampedDistance).toBe(minDistance);
         } else if (distance > maxDistance) {

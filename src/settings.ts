@@ -195,8 +195,41 @@ class MarkersCardSettings extends FormattingSettingsCard {
         }
     });
     
+    shape = new formattingSettings.ItemDropdown({
+        name: "shape",
+        displayName: "Marker Shape",
+        items: [
+            { displayName: "Round", value: "round" },
+            { displayName: "Rectangle", value: "rectangle" },
+            { displayName: "Rounded Rectangle", value: "roundedRectangle" }
+        ],
+        value: { displayName: "Round", value: "round" }
+    });
+
+    labelSize = new formattingSettings.NumUpDown({
+        name: "labelSize",
+        displayName: "Label Size",
+        value: 10,
+        options: {
+            minValue: { value: 5, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 16, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    hoverEffect = new formattingSettings.ToggleSwitch({
+        name: "hoverEffect",
+        displayName: "Enable Hover Effect",
+        value: true
+    });
+
+    clickEffect = new formattingSettings.ToggleSwitch({
+        name: "clickEffect",
+        displayName: "Enable Click Effect",
+        value: true
+    });
+
     name: string = "markers"; displayName: string = "Markers";
-    slices: Array<FormattingSettingsSlice> = [this.size, this.color, this.borderColor, this.borderWidth, this.borderTransparency];
+    slices: Array<FormattingSettingsSlice> = [this.size, this.color, this.borderColor, this.borderWidth, this.borderTransparency, this.shape, this.labelSize, this.hoverEffect, this.clickEffect];
 }
 
 class LabelsCardSettings extends FormattingSettingsCard {

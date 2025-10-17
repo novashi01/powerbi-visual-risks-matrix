@@ -79,22 +79,26 @@ export class Visual implements IVisual {
     }
 
     public update(options: VisualUpdateOptions) {
-        const view = options.dataViews && options.dataViews[0];
-        this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
-        
-        // Update arrow marker with current settings
-        const arrowSize = this.formattingSettings.arrowsCard.arrowSize.value || 8;
-        const defs = this.svg.querySelector('defs') as SVGDefsElement;
-        if (defs) {
-            const arrowColor = this.formattingSettings.arrowsCard.arrowColor.value.value || "#666666";
-            this.createArrowMarker(defs, arrowSize, arrowColor);
+        try {
+            const view = options.dataViews && options.dataViews[0];
+            this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
+            
+            // Update arrow marker with current settings (with safe access)
+            const arrowSize = this.formattingSettings?.arrowsCard?.arrowSize?.value || 8;
+            const defs = this.svg.querySelector('defs') as SVGDefsElement;
+            if (defs) {
+                const arrowColor = this.formattingSettings?.arrowsCard?.arrowColor?.value?.value || "#666666";
+                this.createArrowMarker(defs, arrowSize, arrowColor);
+            }
+            
+            const vp = options.viewport;
+            this.resize(vp);
+            this.renderGrid(vp, view);
+            const data = this.mapData(view);
+            this.renderData(vp, data);
+        } catch (error) {
+            console.error("Error in visual update:", error);
         }
-        
-        const vp = options.viewport;
-        this.resize(vp);
-        this.renderGrid(vp, view);
-        const data = this.mapData(view);
-        this.renderData(vp, data);
     }
 
     public getFormattingModel(): powerbi.visuals.FormattingModel {
@@ -646,7 +650,6 @@ export class Visual implements IVisual {
         const overrideColor = this.formattingSettings.markersCard.color.value.value;
         const finalColor = (overrideColor && overrideColor !== "") ? overrideColor : color;
         const showLabels = this.formattingSettings.labelsCard.show.value;
-        const labelSize = this.formattingSettings.labelsCard.fontSize.value ?? 10;
         const showTooltips = this.formattingSettings.tooltipsCard.show.value;
         const animationEnabled = this.formattingSettings.animationCard.enabled.value ?? false;
         const animationDuration = this.formattingSettings.animationCard.durationMs.value || 1000;
@@ -671,55 +674,103 @@ export class Visual implements IVisual {
         const inherentTransparency = this.formattingSettings?.riskMarkersLayoutCard?.inherentTransparency?.value ?? 50;
         const inherentOpacity = inherentTransparency / 100;
         
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", String(x));
-        circle.setAttribute("cy", String(y));
+        // Safely get shape with default value
+        const shape = this.formattingSettings?.markersCard?.shape?.value?.value ?? "round";
+        const labelSize = this.formattingSettings?.markersCard?.labelSize?.value ?? 10;
+        const hoverEffect = this.formattingSettings?.markersCard?.hoverEffect?.value ?? true;
+        const clickEffect = this.formattingSettings?.markersCard?.clickEffect?.value ?? true;
+
+        let element: SVGElement | undefined;
+        if (shape === "round") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            element.setAttribute("cx", String(x));
+            element.setAttribute("cy", String(y));
+            element.setAttribute("r", String(markerSize));
+        } else if (shape === "rectangle") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            element.setAttribute("x", String(x - markerSize));
+            element.setAttribute("y", String(y - markerSize / 2));
+            element.setAttribute("width", String(markerSize * 2));
+            element.setAttribute("height", String(markerSize));
+        } else if (shape === "roundedRectangle") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            element.setAttribute("x", String(x - markerSize));
+            element.setAttribute("y", String(y - markerSize / 2));
+            element.setAttribute("width", String(markerSize * 2));
+            element.setAttribute("height", String(markerSize));
+            element.setAttribute("rx", "5");
+            element.setAttribute("ry", "5");
+        }
+
+        if (!element) {
+            // Fallback: if shape is unknown, default to circle
+            element = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            element.setAttribute("cx", String(x));
+            element.setAttribute("cy", String(y));
+            element.setAttribute("r", String(markerSize));
+        }
+
+        if (hoverEffect) {
+            element.addEventListener("mouseover", () => {
+                element!.setAttribute("opacity", "0.8");
+            });
+            element.addEventListener("mouseout", () => {
+                element!.setAttribute("opacity", "1");
+            });
+        }
+
+        if (clickEffect) {
+            element.addEventListener("click", () => {
+                // Logic to make other markers transparent
+            });
+        }
+
+        group.appendChild(element);
         
         if (type === 'inherent') {
-            circle.setAttribute("r", String(Math.max(1, markerSize - 1)));
-            circle.setAttribute("fill", finalColor);
-            circle.setAttribute("fill-opacity", String(inherentOpacity));
-            circle.setAttribute("stroke", borderColor);
-            circle.setAttribute("stroke-width", String(borderWidth));
-            circle.setAttribute("stroke-opacity", String(borderOpacity));
-            if (showTooltips) circle.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
+            element.setAttribute("fill", finalColor);
+            element.setAttribute("fill-opacity", String(inherentOpacity));
+            element.setAttribute("stroke", borderColor);
+            element.setAttribute("stroke-width", String(borderWidth));
+            element.setAttribute("stroke-opacity", String(borderOpacity));
+            if (showTooltips) element.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
             
             if (animationEnabled) {
-                circle.setAttribute("opacity", "0");
+                const el = element; // Capture element in closure
+                el.setAttribute("opacity", "0");
                 setTimeout(() => {
-                    circle.style.transition = `opacity ${animationDuration}ms ease-in`;
-                    circle.setAttribute("opacity", "1");
+                    el.style.transition = `opacity ${animationDuration}ms ease-in`;
+                    el.setAttribute("opacity", "1");
                 }, 10);
                 
                 setTimeout(() => {
-                    circle.style.transition = `opacity ${animationDuration}ms ease-out`;
-                    circle.setAttribute("opacity", "0");
+                    el.style.transition = `opacity ${animationDuration}ms ease-out`;
+                    el.setAttribute("opacity", "0");
                 }, animationDuration * 2.5);
             }
         } else {
-            circle.setAttribute("r", String(markerSize));
-            circle.setAttribute("fill", finalColor);
-            circle.setAttribute("stroke", borderColor);
-            circle.setAttribute("stroke-width", String(borderWidth));
-            circle.setAttribute("stroke-opacity", String(borderOpacity));
+            element.setAttribute("fill", finalColor);
+            element.setAttribute("stroke", borderColor);
+            element.setAttribute("stroke-width", String(borderWidth));
+            element.setAttribute("stroke-opacity", String(borderOpacity));
             if (showTooltips) {
                 const lRes = d.lRes ?? d.lInh;
                 const cRes = d.cRes ?? d.cInh;
-                circle.setAttribute("title", `${d.id} (R: ${lRes}×${cRes})`);
+                element.setAttribute("title", `${d.id} (R: ${lRes}×${cRes})`);
             }
             
             if (animationEnabled) {
-                circle.setAttribute("opacity", "0");
+                const el = element; // Capture element in closure
+                el.setAttribute("opacity", "0");
                 setTimeout(() => {
-                    circle.style.transition = `opacity ${animationDuration}ms ease-in`;
-                    circle.setAttribute("opacity", "1");
+                    el.style.transition = `opacity ${animationDuration}ms ease-in`;
+                    el.setAttribute("opacity", "1");
                 }, animationDuration * 2);
             }
         }
         
-        circle.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
-        (circle as any).__sel = d.selectionId;
-        group.appendChild(circle);
+        element.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
+        (element as any).__sel = d.selectionId;
         
         if (type === 'residual' && showLabels) {
             const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
