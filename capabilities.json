@@ -38,24 +38,27 @@
     "axes": {
       "displayName": "Axis Labels",
       "properties": {
-        "showXLabels": { "displayName": "Show X-axis labels", "type": { "bool": true } },
-        "showYLabels": { "displayName": "Show Y-axis labels", "type": { "bool": true } },
+        "showXLabels": { "displayName": "Show X-axis labels (Consequence)", "type": { "bool": true } },
+        "showYLabels": { "displayName": "Show Y-axis labels (Likelihood)", "type": { "bool": true } },
+        "showAxisTitles": { "displayName": "Show axis titles", "type": { "bool": true } },
+        "xAxisTitle": { "displayName": "X-axis title", "type": { "text": true } },
+        "yAxisTitle": { "displayName": "Y-axis title", "type": { "text": true } },
         "xAxisFontSize": { "displayName": "X-axis font size", "type": { "numeric": true } },
         "yAxisFontSize": { "displayName": "Y-axis font size", "type": { "numeric": true } },
         "yAxisOrientation": { "displayName": "Y-axis text orientation", "type": { "enumeration": [
           { "displayName": "Horizontal", "value": "horizontal" },
           { "displayName": "Vertical", "value": "vertical" }
         ] } },
-        "xLabel1": { "displayName": "X-axis label 1", "type": { "text": true } },
-        "xLabel2": { "displayName": "X-axis label 2", "type": { "text": true } },
-        "xLabel3": { "displayName": "X-axis label 3", "type": { "text": true } },
-        "xLabel4": { "displayName": "X-axis label 4", "type": { "text": true } },
-        "xLabel5": { "displayName": "X-axis label 5", "type": { "text": true } },
-        "yLabel1": { "displayName": "Y-axis label 1", "type": { "text": true } },
-        "yLabel2": { "displayName": "Y-axis label 2", "type": { "text": true } },
-        "yLabel3": { "displayName": "Y-axis label 3", "type": { "text": true } },
-        "yLabel4": { "displayName": "Y-axis label 4", "type": { "text": true } },
-        "yLabel5": { "displayName": "Y-axis label 5", "type": { "text": true } }
+        "xLabel1": { "displayName": "X-axis label 1 (Consequence)", "type": { "text": true } },
+        "xLabel2": { "displayName": "X-axis label 2 (Consequence)", "type": { "text": true } },
+        "xLabel3": { "displayName": "X-axis label 3 (Consequence)", "type": { "text": true } },
+        "xLabel4": { "displayName": "X-axis label 4 (Consequence)", "type": { "text": true } },
+        "xLabel5": { "displayName": "X-axis label 5 (Consequence)", "type": { "text": true } },
+        "yLabel1": { "displayName": "Y-axis label 1 (Likelihood)", "type": { "text": true } },
+        "yLabel2": { "displayName": "Y-axis label 2 (Likelihood)", "type": { "text": true } },
+        "yLabel3": { "displayName": "Y-axis label 3 (Likelihood)", "type": { "text": true } },
+        "yLabel4": { "displayName": "Y-axis label 4 (Likelihood)", "type": { "text": true } },
+        "yLabel5": { "displayName": "Y-axis label 5 (Likelihood)", "type": { "text": true } }
       }
     },
     "markers": {

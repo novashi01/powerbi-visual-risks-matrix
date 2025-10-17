@@ -164,9 +164,12 @@ export class Visual implements IVisual {
         const ch = h / rows;
         
         // Cells with severity background
+        // SWAPPED: Consequence (C) on X-axis, Likelihood (L) on Y-axis
         for (let x = 0; x < cols; x++) {
             for (let y = 0; y < rows; y++) {
-                const L = x + 1; const C = rows - y; const score = L * C;
+                const C = x + 1;           // Consequence on X-axis (horizontal)
+                const L = rows - y;        // Likelihood on Y-axis (vertical, inverted)
+                const score = L * C;
                 const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 rect.setAttribute("x", String(m.l + x * cw));
                 rect.setAttribute("y", String(m.t + y * ch));
@@ -179,14 +182,14 @@ export class Visual implements IVisual {
         
         // Get customizable axis labels from settings
         const settings = this.formattingSettings?.axesCard;
-        const lLabs = [
+        const cLabs = [
             settings?.xLabel1?.value || "1",
             settings?.xLabel2?.value || "2", 
             settings?.xLabel3?.value || "3",
             settings?.xLabel4?.value || "4",
             settings?.xLabel5?.value || "5"
         ];
-        const cLabs = [
+        const lLabs = [
             settings?.yLabel1?.value || "1",
             settings?.yLabel2?.value || "2",
             settings?.yLabel3?.value || "3", 
@@ -196,26 +199,56 @@ export class Visual implements IVisual {
         
         const showXLabels = settings?.showXLabels?.value !== false;
         const showYLabels = settings?.showYLabels?.value !== false;
+        const showAxisTitles = settings?.showAxisTitles?.value !== false;
+        const xAxisTitle = settings?.xAxisTitle?.value || "Consequence";
+        const yAxisTitle = settings?.yAxisTitle?.value || "Likelihood";
         const xFontSize = settings?.xAxisFontSize?.value || 10;
         const yFontSize = settings?.yAxisFontSize?.value || 10;
         const yOrientation = settings?.yAxisOrientation?.value?.value || "horizontal";
         
-        // Render X-axis labels (Likelihood: custom labels with bounds checking)
+        // Render X-axis title (centered at bottom) - CONSEQUENCE
+        if (showAxisTitles && xAxisTitle) {
+            const titleX = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            titleX.setAttribute("x", String(m.l + w / 2));
+            titleX.setAttribute("y", String(vp.height - 4));  // Below the labels
+            titleX.setAttribute("text-anchor", "middle");
+            titleX.setAttribute("font-size", String(xFontSize + 2));
+            titleX.setAttribute("font-weight", "bold");
+            titleX.setAttribute("fill", "#333");
+            titleX.textContent = xAxisTitle;
+            this.gGrid.appendChild(titleX);
+        }
+        
+        // Render Y-axis title (rotated on left side) - LIKELIHOOD
+        if (showAxisTitles && yAxisTitle) {
+            const titleY = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            titleY.setAttribute("x", "8");
+            titleY.setAttribute("y", String(m.t + h / 2));
+            titleY.setAttribute("text-anchor", "middle");
+            titleY.setAttribute("font-size", String(yFontSize + 2));
+            titleY.setAttribute("font-weight", "bold");
+            titleY.setAttribute("fill", "#333");
+            titleY.setAttribute("transform", `rotate(-90, 8, ${m.t + h / 2})`);
+            titleY.textContent = yAxisTitle;
+            this.gGrid.appendChild(titleY);
+        }
+        
+        // Render X-axis labels (Consequence: custom labels with bounds checking)
         if (showXLabels) {
             for (let x = 0; x < cols; x++) {
                 const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 tx.setAttribute("x", String(m.l + (x + 0.5) * cw));
-                tx.setAttribute("y", String(vp.height - 8));
+                tx.setAttribute("y", String(vp.height - 20));  // Moved up to make room for title below
                 tx.setAttribute("text-anchor", "middle");
                 tx.setAttribute("font-size", String(xFontSize));
                 // Use custom label or fallback to number
-                const lIndex = x;
-                tx.textContent = lIndex < lLabs.length ? lLabs[lIndex] : String(x + 1);
+                const cIndex = x;
+                tx.textContent = cIndex < cLabs.length ? cLabs[cIndex] : String(x + 1);
                 this.gGrid.appendChild(tx);
             }
         }
         
-        // Render Y-axis labels (Consequence: custom labels with orientation)
+        // Render Y-axis labels (Likelihood: custom labels with orientation)
         if (showYLabels) {
             for (let y = 0; y < rows; y++) {
                 const ty = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -234,8 +267,8 @@ export class Visual implements IVisual {
                 }
                 
                 ty.setAttribute("font-size", String(yFontSize));
-                const cIndex = rows - y - 1; // Display from top to bottom
-                ty.textContent = cIndex < cLabs.length ? cLabs[cIndex] : String(rows - y); // Use custom label or fallback
+                const lIndex = rows - y - 1; // Display from top to bottom
+                ty.textContent = lIndex < lLabs.length ? lLabs[lIndex] : String(rows - y); // Use custom label or fallback
                 this.gGrid.appendChild(ty);
             }
         }
@@ -313,9 +346,10 @@ export class Visual implements IVisual {
         const cw = w / cols;
         const ch = h / rows;
         
+        // SWAPPED: C (Consequence) on X-axis, L (Likelihood) on Y-axis
         const toXY = (L: number, C: number) => {
-            const x = m.l + (L - 1) * cw + cw / 2;
-            const y = m.t + (rows - C) * ch + ch / 2;
+            const x = m.l + (C - 1) * cw + cw / 2;     // Consequence maps to x (horizontal)
+            const y = m.t + (rows - L) * ch + ch / 2;  // Likelihood maps to y (vertical)
             return { x, y };
         };
         

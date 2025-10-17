@@ -105,14 +105,19 @@ class ThresholdsCardSettings extends FormattingSettingsCard {
 }
 
 class AxesCardSettings extends FormattingSettingsCard {
-    // X-Axis (Likelihood) Labels
+    // Axis Titles
+    xAxisTitle = new formattingSettings.TextInput({ name: "xAxisTitle", displayName: "X-axis title", value: "Consequence", placeholder: "Consequence" });
+    yAxisTitle = new formattingSettings.TextInput({ name: "yAxisTitle", displayName: "Y-axis title", value: "Likelihood", placeholder: "Likelihood" });
+    showAxisTitles = new formattingSettings.ToggleSwitch({ name: "showAxisTitles", displayName: "Show axis titles", value: true });
+    
+    // X-Axis (Consequence) Labels
     xLabel1 = new formattingSettings.TextInput({ name: "xLabel1", displayName: "X-axis label 1", value: "1", placeholder: "1" });
     xLabel2 = new formattingSettings.TextInput({ name: "xLabel2", displayName: "X-axis label 2", value: "2", placeholder: "2" });
     xLabel3 = new formattingSettings.TextInput({ name: "xLabel3", displayName: "X-axis label 3", value: "3", placeholder: "3" });
     xLabel4 = new formattingSettings.TextInput({ name: "xLabel4", displayName: "X-axis label 4", value: "4", placeholder: "4" });
     xLabel5 = new formattingSettings.TextInput({ name: "xLabel5", displayName: "X-axis label 5", value: "5", placeholder: "5" });
     
-    // Y-Axis (Consequence) Labels  
+    // Y-Axis (Likelihood) Labels  
     yLabel1 = new formattingSettings.TextInput({ name: "yLabel1", displayName: "Y-axis label 1", value: "1", placeholder: "1" });
     yLabel2 = new formattingSettings.TextInput({ name: "yLabel2", displayName: "Y-axis label 2", value: "2", placeholder: "2" });
     yLabel3 = new formattingSettings.TextInput({ name: "yLabel3", displayName: "Y-axis label 3", value: "3", placeholder: "3" });
@@ -151,6 +156,7 @@ class AxesCardSettings extends FormattingSettingsCard {
     name: string = "axes";
     displayName: string = "Axis Labels";
     slices: Array<FormattingSettingsSlice> = [
+        this.showAxisTitles, this.xAxisTitle, this.yAxisTitle,
         this.showXLabels, this.showYLabels,
         this.xAxisFontSize, this.yAxisFontSize, this.yAxisOrientation,
         this.xLabel1, this.xLabel2, this.xLabel3, this.xLabel4, this.xLabel5,
