@@ -134,7 +134,9 @@
       "displayName": "Matrix Grid",
       "properties": {
         "matrixRows": { "displayName": "Matrix rows", "type": { "numeric": true } },
-        "matrixColumns": { "displayName": "Matrix columns", "type": { "numeric": true } }
+        "matrixColumns": { "displayName": "Matrix columns", "type": { "numeric": true } },
+        "severityTransparency": { "displayName": "Severity color transparency (%)", "type": { "numeric": true } },
+        "gridBorderColor": { "displayName": "Grid border color", "type": { "fill": { "solid": { "color": true } } } }
       }
     },
     "riskMarkersLayout": {
