@@ -83,6 +83,13 @@
           "displayName": "Label Size",
           "type": { "numeric": true }
         },
+        "showRiskIdLabel": { "displayName": "Show Risk ID in marker", "type": { "bool": true } },
+        "riskIdLabelFontSize": { "displayName": "Risk ID font size", "type": { "numeric": true } },
+        "riskIdLabelAlignment": { "displayName": "Risk ID alignment", "type": { "enumeration": [ { "displayName": "Center", "value": "center" }, { "displayName": "Left", "value": "left" }, { "displayName": "Right", "value": "right" } ] } },
+        "riskIdLabelPadding": { "displayName": "Risk ID padding", "type": { "numeric": true } },
+        "riskIdLabelTruncate": { "displayName": "Truncate long Risk IDs", "type": { "bool": true } },
+        "riskIdLabelMinMarkerSize": { "displayName": "Min marker size behavior", "type": { "enumeration": [ { "displayName": "Auto (expand when necessary)", "value": "auto" }, { "displayName": "Fixed (truncate instead)", "value": "fixed" } ] } },
+        "riskIdLabelColor": { "displayName": "Risk ID color", "type": { "fill": { "solid": { "color": true } } } },
         "hoverEffect": {
           "displayName": "Enable Hover Effect",
           "type": { "bool": true }

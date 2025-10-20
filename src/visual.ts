@@ -639,6 +639,12 @@ export class Visual implements IVisual {
         
         return organized;
     }
+
+    // Approximate text width when getBBox is unavailable (tests/node). Uses a per-character multiplier.
+    private approximateTextWidth(text: string, fontSize: number): number {
+        const avgCharWidth = 0.6; // multiplier of fontSize
+        return Math.max(0, text.length * fontSize * avgCharWidth);
+    }
     
     private renderSingleMarkerToGroup(group: SVGGElement, marker: any, sm: ISelectionManager, type: 'inherent' | 'residual') {
         const d = marker.data;
@@ -646,9 +652,13 @@ export class Visual implements IVisual {
         const x = marker.organizedX;
         const y = marker.organizedY;
         
-        const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
-        const overrideColor = this.formattingSettings.markersCard.color.value.value;
-        const finalColor = (overrideColor && overrideColor !== "") ? overrideColor : color;
+    const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
+    const overrideColor = this.formattingSettings.markersCard.color.value.value;
+    // color param is the residual-based severity color (from caller). We want inherent to use its own severity color.
+    const residualSeverityColor = color;
+    const inherentSeverityColor = this.getSeverityColor(((d.lInh ?? d.lRes) || 1) * ((d.cInh ?? d.cRes) || 1));
+    const resColor = (overrideColor && overrideColor !== "") ? overrideColor : residualSeverityColor;
+    const inhColor = (overrideColor && overrideColor !== "") ? overrideColor : inherentSeverityColor;
         const showLabels = this.formattingSettings.labelsCard.show.value;
         const showTooltips = this.formattingSettings.tooltipsCard.show.value;
         const animationEnabled = this.formattingSettings.animationCard.enabled.value ?? false;
@@ -710,85 +720,247 @@ export class Visual implements IVisual {
             element.setAttribute("r", String(markerSize));
         }
 
+        // Wrap element in a group so hover/scale and label live together.
+        const markerGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markerGroup.setAttribute("class", "marker-group");
+        // Track visibility state to avoid hover showing hidden/inactive markers
+        (element as any).__visible = true;
+        // Append element into the markerGroup and then into the cell/group
+        markerGroup.appendChild(element);
+        group.appendChild(markerGroup);
+
+        // Hover effect: scale up the marker around its visual center and slightly brighten (via fill-opacity)
         if (hoverEffect) {
-            element.addEventListener("mouseover", () => {
-                element!.setAttribute("opacity", "0.8");
-            });
-            element.addEventListener("mouseout", () => {
-                element!.setAttribute("opacity", "1");
-            });
+            const applyHover = () => {
+                if (!(element as any).__visible) return; // don't show hover when hidden
+                // compute center
+                let cx = x, cy = y;
+                if (element.tagName === 'circle') {
+                    cx = Number(element.getAttribute('cx')) || x;
+                    cy = Number(element.getAttribute('cy')) || y;
+                } else if (element.tagName === 'rect') {
+                    const rx = Number(element.getAttribute('x')) || (x - markerSize);
+                    const ry = Number(element.getAttribute('y')) || (y - markerSize / 2);
+                    const rw = Number(element.getAttribute('width')) || (markerSize * 2);
+                    const rh = Number(element.getAttribute('height')) || markerSize;
+                    cx = rx + rw / 2;
+                    cy = ry + rh / 2;
+                }
+                // scale around center
+                markerGroup.setAttribute('transform', `translate(${cx},${cy}) scale(1.15) translate(${-cx},${-cy})`);
+                // slightly increase fill opacity/brightness
+                try {
+                    const currentFillOpacity = parseFloat(element.getAttribute('fill-opacity') || '1');
+                    element.setAttribute('fill-opacity', String(Math.min(1, currentFillOpacity + 0.15)));
+                } catch (e) {
+                    // ignore
+                }
+            };
+            const removeHover = () => {
+                markerGroup.removeAttribute('transform');
+                // restore fill-opacity
+                try {
+                    const baseOpacity = (type === 'inherent') ? (inherentOpacity) : 1;
+                    element.setAttribute('fill-opacity', String(baseOpacity));
+                } catch (e) {}
+            };
+
+            markerGroup.addEventListener('mouseover', () => applyHover());
+            markerGroup.addEventListener('mouseout', () => removeHover());
         }
 
         if (clickEffect) {
-            element.addEventListener("click", () => {
-                // Logic to make other markers transparent
+            markerGroup.addEventListener('click', () => {
+                // Placeholder for click effects (selection handled later)
             });
         }
-
-        group.appendChild(element);
         
+    // Common visual attributes
+    element.setAttribute("fill", type === 'inherent' ? inhColor : resColor);
+        element.setAttribute("stroke", borderColor);
+        element.setAttribute("stroke-width", String(borderWidth));
+        element.setAttribute("stroke-opacity", String(borderOpacity));
         if (type === 'inherent') {
-            element.setAttribute("fill", finalColor);
             element.setAttribute("fill-opacity", String(inherentOpacity));
-            element.setAttribute("stroke", borderColor);
-            element.setAttribute("stroke-width", String(borderWidth));
-            element.setAttribute("stroke-opacity", String(borderOpacity));
-            if (showTooltips) element.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
-            
-            if (animationEnabled) {
-                const el = element; // Capture element in closure
-                el.setAttribute("opacity", "0");
-                setTimeout(() => {
-                    el.style.transition = `opacity ${animationDuration}ms ease-in`;
-                    el.setAttribute("opacity", "1");
-                }, 10);
-                
-                setTimeout(() => {
-                    el.style.transition = `opacity ${animationDuration}ms ease-out`;
-                    el.setAttribute("opacity", "0");
-                }, animationDuration * 2.5);
-            }
+            if (showTooltips) markerGroup.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
         } else {
-            element.setAttribute("fill", finalColor);
-            element.setAttribute("stroke", borderColor);
-            element.setAttribute("stroke-width", String(borderWidth));
-            element.setAttribute("stroke-opacity", String(borderOpacity));
+            element.setAttribute("fill-opacity", String(1));
             if (showTooltips) {
                 const lRes = d.lRes ?? d.lInh;
                 const cRes = d.cRes ?? d.cInh;
-                element.setAttribute("title", `${d.id} (R: ${lRes}×${cRes})`);
+                markerGroup.setAttribute("title", `${d.id} (R: ${lRes}×${cRes})`);
             }
+        }
+
+        // Ensure markerGroup is visible by default
+        markerGroup.removeAttribute('display');
+        (element as any).__visible = true;
+
+        if (animationEnabled) {
+            const inherentFadeStart = Math.ceil(animationDuration * 2.5);
+            const residualBuffer = Math.max(75, Math.ceil(animationDuration * 0.3));
+            const residualDelay = inherentFadeStart + animationDuration + residualBuffer;
             
-            if (animationEnabled) {
-                const el = element; // Capture element in closure
-                el.setAttribute("opacity", "0");
+            if (type === 'inherent') {
+                // Inherent: fade in immediately, then fade out
+                markerGroup.setAttribute('opacity', '0');
                 setTimeout(() => {
-                    el.style.transition = `opacity ${animationDuration}ms ease-in`;
-                    el.setAttribute("opacity", "1");
-                }, animationDuration * 2);
+                    markerGroup.style.transition = `opacity ${animationDuration}ms ease-in`;
+                    markerGroup.setAttribute('opacity', '1');
+                }, 10);
+                
+                // Fade out inherent after display period
+                setTimeout(() => {
+                    markerGroup.style.transition = `opacity ${animationDuration}ms ease-out`;
+                    markerGroup.setAttribute('opacity', '0');
+                    // after fade-out, remove from hit testing and mark invisible
+                    setTimeout(() => {
+                        try { markerGroup.setAttribute('display', 'none'); } catch (e) {}
+                        (element as any).__visible = false;
+                        try { (markerGroup as any).style.pointerEvents = 'none'; } catch (e) {}
+                    }, animationDuration);
+                }, inherentFadeStart);
+            } else {
+                // Residual: start hidden, show after inherent fades out
+                markerGroup.setAttribute('opacity', '0');
+                markerGroup.setAttribute('display', 'none');
+                try { (markerGroup as any).style.pointerEvents = 'none'; } catch (e) {}
+                
+                setTimeout(() => {
+                    markerGroup.removeAttribute('display');
+                    markerGroup.style.transition = `opacity ${animationDuration}ms ease-in`;
+                    markerGroup.setAttribute('opacity', '1');
+                    try { (markerGroup as any).style.pointerEvents = 'auto'; } catch (e) {}
+                }, residualDelay);
             }
         }
         
-        element.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
-        (element as any).__sel = d.selectionId;
+    // Selection wiring on the group so clicks on labels/text also select the marker
+    markerGroup.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
+    (markerGroup as any).__sel = d.selectionId;
         
-        if (type === 'residual' && showLabels) {
-            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            label.setAttribute("x", String(x + markerSize + 2));
-            label.setAttribute("y", String(y + 3));
-            label.setAttribute("font-size", String(labelSize));
-            label.setAttribute("fill", "#111");
-            label.textContent = d.id;
-            
-            if (animationEnabled) {
-                label.setAttribute("opacity", "0");
-                setTimeout(() => {
-                    label.style.transition = `opacity ${animationDuration}ms ease-in`;
-                    label.setAttribute("opacity", "1");
-                }, animationDuration * 2);
+    // Show labels for both inherent and residual when labels are enabled
+    if (showLabels) {
+            // Render in-marker Risk ID label if enabled; otherwise fallback to external label
+            const showRiskIdLabel = this.formattingSettings?.markersCard?.showRiskIdLabel?.value ?? false;
+            const riskIdFontSize = this.formattingSettings?.markersCard?.riskIdLabelFontSize?.value ?? labelSize;
+            const riskIdAlign = this.formattingSettings?.markersCard?.riskIdLabelAlignment?.value?.value ?? "center";
+            const riskIdPadding = this.formattingSettings?.markersCard?.riskIdLabelPadding?.value ?? 2;
+            const riskIdTruncate = this.formattingSettings?.markersCard?.riskIdLabelTruncate?.value ?? true;
+            const riskIdMinBehavior = this.formattingSettings?.markersCard?.riskIdLabelMinMarkerSize?.value?.value ?? "fixed";
+            const riskIdColor = this.formattingSettings?.markersCard?.riskIdLabelColor?.value?.value || "#111111";
+
+            if (showRiskIdLabel) {
+                // Use existing markerGroup (created earlier) as container so clicks on text also select marker
+                markerGroup.setAttribute('class', (markerGroup.getAttribute('class') || '') + ' marker-with-label');
+
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("font-size", String(riskIdFontSize));
+                text.setAttribute("fill", riskIdColor);
+                text.setAttribute("dominant-baseline", "middle");
+                text.setAttribute("text-anchor", riskIdAlign === "center" ? "middle" : (riskIdAlign === "left" ? "start" : "end"));
+                text.textContent = String(d.id || "");
+
+                // Compute available width depending on shape
+                let availableWidth = 2 * markerSize - (riskIdPadding * 2);
+                if (element.tagName === "rect") {
+                    const w = Number(element.getAttribute("width") || (markerSize * 2));
+                    availableWidth = w - (riskIdPadding * 2);
+                }
+                // Measure text width with getBBox if available; otherwise approximate
+                let textWidth = 0;
+                try {
+                    // Temporarily append text to measure if getBBox exists in environment
+                    markerGroup.appendChild(text);
+                    if ((text as any).getBBox) {
+                        const bbox = (text as any).getBBox();
+                        textWidth = bbox.width;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+                if (!textWidth) {
+                    textWidth = this.approximateTextWidth(text.textContent || "", riskIdFontSize);
+                }
+
+                // Truncate if needed
+                if (textWidth > availableWidth) {
+                    if (riskIdMinBehavior === "auto" && element.tagName === "rect") {
+                        // expand rect width symmetrically
+                        const needed = Math.ceil((textWidth + riskIdPadding * 2) - (availableWidth));
+                        const oldW = Number(element.getAttribute("width") || (markerSize * 2));
+                        const newW = oldW + needed;
+                        element.setAttribute("width", String(newW));
+                        // shift x left so center stays
+                        const oldX = Number(element.getAttribute("x") || String(x - markerSize));
+                        element.setAttribute("x", String(oldX - needed / 2));
+                        availableWidth = newW - (riskIdPadding * 2);
+                    } else if (riskIdTruncate) {
+                        // truncate with simple ellipsis
+                        const maxChars = Math.max(1, Math.floor(availableWidth / (riskIdFontSize * 0.6)));
+                        let txt = String(d.id || "");
+                        if (txt.length > maxChars) {
+                            txt = txt.slice(0, Math.max(0, maxChars - 1)) + "…";
+                        }
+                        text.textContent = txt;
+                    }
+                }
+
+                // Position text
+                if (element.tagName === "circle") {
+                    const cx = Number(element.getAttribute("cx"));
+                    const cy = Number(element.getAttribute("cy"));
+                    // center horizontally relative to circle center
+                    const tx = riskIdAlign === "left" ? cx - markerSize + riskIdPadding : (riskIdAlign === "right" ? cx + markerSize - riskIdPadding : cx);
+                    text.setAttribute("x", String(tx));
+                    text.setAttribute("y", String(cy));
+                } else if (element.tagName === "rect") {
+                    const rx = Number(element.getAttribute("x"));
+                    const ry = Number(element.getAttribute("y"));
+                    const rw = Number(element.getAttribute("width") || (markerSize * 2));
+                    const rh = Number(element.getAttribute("height") || markerSize);
+                    const tx = riskIdAlign === "left" ? (rx + riskIdPadding) : (riskIdAlign === "right" ? (rx + rw - riskIdPadding) : (rx + rw / 2));
+                    const ty = ry + rh / 2;
+                    text.setAttribute("x", String(tx));
+                    text.setAttribute("y", String(ty));
+                } else {
+                    // fallback to placing near x,y
+                    text.setAttribute("x", String(x));
+                    text.setAttribute("y", String(y));
+                }
+
+                // Always add full id as title for accessibility
+                markerGroup.setAttribute("title", String(d.id || ""));
+
+                // Ensure animation for text follows same timing as the markerGroup (no delayed after)
+                if (animationEnabled) {
+                    text.setAttribute("opacity", "0");
+                    // start shortly after DOM updates (same as markerGroup initial fade)
+                    setTimeout(() => {
+                        text.style.transition = `opacity ${animationDuration}ms ease-in`;
+                        text.setAttribute("opacity", "1");
+                    }, 10);
+                }
+
+                // ensure text is appended to the markerGroup (may already be appended during measurement)
+                if (text.parentNode !== markerGroup) markerGroup.appendChild(text);
+            } else {
+                // Fallback: external label (existing behavior)
+                const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                label.setAttribute("x", String(x + markerSize + 2));
+                label.setAttribute("y", String(y + 3));
+                label.setAttribute("font-size", String(labelSize));
+                label.setAttribute("fill", "#111");
+                label.textContent = d.id;
+                if (animationEnabled) {
+                    label.setAttribute("opacity", "0");
+                    setTimeout(() => {
+                        label.style.transition = `opacity ${animationDuration}ms ease-in`;
+                        label.setAttribute("opacity", "1");
+                    }, animationDuration * 2);
+                }
+                group.appendChild(label);
             }
-            
-            group.appendChild(label);
         }
     }
     
@@ -822,17 +994,31 @@ export class Visual implements IVisual {
     }
     
     private renderMarkerWithArrow(d: RiskPoint, start: {x: number, y: number} | undefined, end: {x: number, y: number}, color: string, jit: {dx: number, dy: number}, sm: ISelectionManager) {
-        const showArrows = this.formattingSettings.arrowsCard.show.value;
-        const arrowDistance = this.formattingSettings.arrowsCard.arrowDistance.value || 5;
-        const arrowColor = this.formattingSettings.arrowsCard.arrowColor.value.value || "#666666";
-        const arrowTransparency = this.formattingSettings.arrowsCard.arrowTransparency.value || 100;
-        const arrowOpacity = arrowTransparency / 100;
-        const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
-        const overrideColor = this.formattingSettings.markersCard.color.value.value;
-        const finalColor = (overrideColor && overrideColor !== "") ? overrideColor : color;
-        const showLabels = this.formattingSettings.labelsCard.show.value;
-        const labelSize = this.formattingSettings.labelsCard.fontSize.value ?? 10;
-        const showTooltips = this.formattingSettings.tooltipsCard.show.value;
+    const showArrows = this.formattingSettings.arrowsCard.show.value;
+    const arrowDistance = this.formattingSettings.arrowsCard.arrowDistance.value || 5;
+    const arrowColor = this.formattingSettings.arrowsCard.arrowColor.value.value || "#666666";
+    const arrowTransparency = this.formattingSettings.arrowsCard.arrowTransparency.value || 100;
+    const arrowOpacity = arrowTransparency / 100;
+    const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
+    const overrideColor = this.formattingSettings.markersCard.color.value.value;
+    // residual severity color comes from caller; compute inherent severity color separately
+    const residualSeverityColor = color;
+    const inherentSeverityColor = this.getSeverityColor(((d.lInh ?? d.lRes) || 1) * ((d.cInh ?? d.cRes) || 1));
+    const resColor = (overrideColor && overrideColor !== "") ? overrideColor : residualSeverityColor;
+    const inhColor = (overrideColor && overrideColor !== "") ? overrideColor : inherentSeverityColor;
+    const showLabels = this.formattingSettings.labelsCard.show.value;
+    const labelSize = this.formattingSettings.labelsCard.fontSize.value ?? 10;
+    const showTooltips = this.formattingSettings.tooltipsCard.show.value;
+        const animationEnabled = this.formattingSettings.animationCard.enabled.value ?? false;
+        const animationDuration = this.formattingSettings.animationCard.durationMs.value || 1000;
+        const hasArrow = showArrows && !!start && (start.x !== end.x || start.y !== end.y);
+        const inherentFadeStart = Math.ceil(animationDuration * 2.5);
+        const arrowShowDelay = Math.ceil(animationDuration * 1.5);
+        const arrowHideStart = Math.ceil(animationDuration * 3.5);
+        const residualBuffer = Math.max(75, Math.ceil(animationDuration * 0.3));
+        const residualDelay = hasArrow
+            ? arrowHideStart + animationDuration + residualBuffer
+            : inherentFadeStart + animationDuration + residualBuffer;
         
         // Get marker border settings - FIXED: Correct reading from ColorPicker
         const borderColor = this.formattingSettings.markersCard.borderColor.value?.value || "#111111";
@@ -840,7 +1026,7 @@ export class Visual implements IVisual {
         const borderTransparency = this.formattingSettings.markersCard.borderTransparency.value ?? 100;
         const borderOpacity = borderTransparency / 100;
         
-        if (showArrows && start && (start.x !== end.x || start.y !== end.y)) {
+    if (hasArrow && start) {
             // Calculate adjusted positions with distance from markers
             const adjustedPos = this.calculateArrowPosition(
                 { x: start.x + jit.dx, y: start.y + jit.dy },
@@ -857,7 +1043,28 @@ export class Visual implements IVisual {
             line.setAttribute("stroke-opacity", String(arrowOpacity));
             line.setAttribute("stroke-width", "1.5"); 
             line.setAttribute("marker-end", "url(#arrow)");
-            this.gArrows.appendChild(line);
+            // Animate arrow opacity in sequence when animation enabled
+            if (animationEnabled) {
+                line.setAttribute('opacity', '0');
+                this.gArrows.appendChild(line);
+                // show arrow after inherent initial display (~1.5 * duration)
+                setTimeout(() => {
+                    try { line.style.transition = `opacity ${animationDuration}ms ease-in`; } catch (e) {}
+                    line.setAttribute('opacity', '1');
+                }, arrowShowDelay);
+                // schedule arrow fade-out after inherent fade-out completes (~3.5 * duration)
+                setTimeout(() => {
+                    try { line.style.transition = `opacity ${animationDuration}ms ease-out`; } catch (e) {}
+                    line.setAttribute('opacity', '0');
+                    // remove from hit-testing after fade-out
+                    setTimeout(() => {
+                        try { line.setAttribute('display', 'none'); } catch (e) {}
+                    }, animationDuration);
+                }, arrowHideStart);
+            } else {
+                line.setAttribute('opacity', '1');
+                this.gArrows.appendChild(line);
+            }
         }
         
         // Render start marker (inherent risk) if exists
@@ -866,7 +1073,7 @@ export class Visual implements IVisual {
             c1.setAttribute("cx", String(start.x + jit.dx));
             c1.setAttribute("cy", String(start.y + jit.dy));
             c1.setAttribute("r", String(Math.max(1, markerSize - 1)));
-            c1.setAttribute("fill", finalColor);
+            c1.setAttribute("fill", inhColor);
             c1.setAttribute("fill-opacity", "0.5");
             c1.setAttribute("stroke", borderColor);
             c1.setAttribute("stroke-width", String(borderWidth));
@@ -874,7 +1081,26 @@ export class Visual implements IVisual {
             if (showTooltips) c1.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
             c1.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
             (c1 as any).__sel = d.selectionId;
-            this.gPoints.appendChild(c1);
+            if (animationEnabled) {
+                c1.setAttribute('opacity', '0');
+                this.gPoints.appendChild(c1);
+                // show inherent quickly
+                setTimeout(() => {
+                    try { c1.style.transition = `opacity ${animationDuration}ms ease-in`; } catch (e) {}
+                    c1.setAttribute('opacity', '1');
+                }, 10);
+                // fade out inherent later
+                setTimeout(() => {
+                    try { c1.style.transition = `opacity ${animationDuration}ms ease-out`; } catch (e) {}
+                    c1.setAttribute('opacity', '0');
+                    setTimeout(() => {
+                        try { c1.setAttribute('display', 'none'); } catch (e) {}
+                        try { (c1 as any).style.pointerEvents = 'none'; } catch (e) {}
+                    }, animationDuration);
+                }, inherentFadeStart);
+            } else {
+                this.gPoints.appendChild(c1);
+            }
         }
         
         // Render end marker (residual risk)
@@ -882,15 +1108,32 @@ export class Visual implements IVisual {
         c2.setAttribute("cx", String(end.x + jit.dx));
         c2.setAttribute("cy", String(end.y + jit.dy));
         c2.setAttribute("r", String(markerSize));
-        c2.setAttribute("fill", finalColor);
+        c2.setAttribute("fill", resColor);
         c2.setAttribute("stroke", borderColor);
         c2.setAttribute("stroke-width", String(borderWidth));
         c2.setAttribute("stroke-opacity", String(borderOpacity));
         if (showTooltips) c2.setAttribute("title", `${d.id} (R: ${d.lRes ?? d.lInh}×${d.cRes ?? d.cInh})`);
         c2.addEventListener("click", (evt) => { evt.stopPropagation(); sm.select(d.selectionId, evt.ctrlKey || evt.metaKey); });
         (c2 as any).__sel = d.selectionId;
-        this.gPoints.appendChild(c2);
-        
+        // If animation is enabled, delay showing the residual marker until after arrows/initial sequence
+        if (animationEnabled) {
+            c2.setAttribute('opacity', '0');
+            c2.setAttribute('display', 'none');
+            try { (c2 as any).style.pointerEvents = 'none'; } catch (e) {}
+            this.gPoints.appendChild(c2);
+            setTimeout(() => {
+                c2.removeAttribute('display');
+                try {
+                    c2.style.transition = `opacity ${animationDuration}ms ease-in`;
+                } catch (e) {}
+                c2.setAttribute('opacity', '1');
+                try { (c2 as any).style.pointerEvents = 'auto'; } catch (e) {}
+            }, residualDelay);
+        } else {
+            c2.setAttribute('opacity', '1');
+            this.gPoints.appendChild(c2);
+        }
+
         // Render label (if enabled)
         if (showLabels) {
             const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -899,7 +1142,21 @@ export class Visual implements IVisual {
             label.setAttribute("font-size", String(labelSize));
             label.setAttribute("fill", "#111");
             label.textContent = d.id;
-            this.gPoints.appendChild(label);
+            if (animationEnabled) {
+                label.setAttribute('opacity', '0');
+                label.setAttribute('display', 'none');
+                this.gPoints.appendChild(label);
+                const labelDelay = residualDelay;
+                setTimeout(() => {
+                    label.removeAttribute('display');
+                    try {
+                        label.style.transition = `opacity ${animationDuration}ms ease-in`;
+                    } catch (e) {}
+                    label.setAttribute('opacity', '1');
+                }, labelDelay);
+            } else {
+                this.gPoints.appendChild(label);
+            }
         }
     }
 

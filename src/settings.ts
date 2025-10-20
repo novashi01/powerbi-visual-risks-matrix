@@ -216,6 +216,15 @@ class MarkersCardSettings extends FormattingSettingsCard {
         }
     });
 
+    // In-marker label settings (v1.3.4)
+    showRiskIdLabel = new formattingSettings.ToggleSwitch({ name: "showRiskIdLabel", displayName: "Show Risk ID in marker", value: false });
+    riskIdLabelFontSize = new formattingSettings.NumUpDown({ name: "riskIdLabelFontSize", displayName: "Risk ID font size", value: 9, options: { minValue: { value: 6, type: powerbi.visuals.ValidatorType.Min }, maxValue: { value: 16, type: powerbi.visuals.ValidatorType.Max } } });
+    riskIdLabelAlignment = new formattingSettings.ItemDropdown({ name: "riskIdLabelAlignment", displayName: "Risk ID alignment", items: [ { displayName: "Center", value: "center" }, { displayName: "Left", value: "left" }, { displayName: "Right", value: "right" } ], value: { displayName: "Center", value: "center" } });
+    riskIdLabelPadding = new formattingSettings.NumUpDown({ name: "riskIdLabelPadding", displayName: "Risk ID padding", value: 2, options: { minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min }, maxValue: { value: 10, type: powerbi.visuals.ValidatorType.Max } } });
+    riskIdLabelTruncate = new formattingSettings.ToggleSwitch({ name: "riskIdLabelTruncate", displayName: "Truncate long Risk IDs", value: true });
+    riskIdLabelMinMarkerSize = new formattingSettings.ItemDropdown({ name: "riskIdLabelMinMarkerSize", displayName: "Min marker size behavior", items: [ { displayName: "Auto (expand when necessary)", value: "auto" }, { displayName: "Fixed (truncate instead)", value: "fixed" } ], value: { displayName: "Fixed (truncate instead)", value: "fixed" } });
+    riskIdLabelColor = new formattingSettings.ColorPicker({ name: "riskIdLabelColor", displayName: "Risk ID color", value: { value: "#111111" } });
+
     hoverEffect = new formattingSettings.ToggleSwitch({
         name: "hoverEffect",
         displayName: "Enable Hover Effect",
@@ -229,7 +238,11 @@ class MarkersCardSettings extends FormattingSettingsCard {
     });
 
     name: string = "markers"; displayName: string = "Markers";
-    slices: Array<FormattingSettingsSlice> = [this.size, this.color, this.borderColor, this.borderWidth, this.borderTransparency, this.shape, this.labelSize, this.hoverEffect, this.clickEffect];
+    slices: Array<FormattingSettingsSlice> = [
+        this.size, this.color, this.borderColor, this.borderWidth, this.borderTransparency,
+        this.shape, this.labelSize, this.hoverEffect, this.clickEffect,
+        this.showRiskIdLabel, this.riskIdLabelFontSize, this.riskIdLabelAlignment, this.riskIdLabelPadding, this.riskIdLabelTruncate, this.riskIdLabelMinMarkerSize, this.riskIdLabelColor
+    ];
 }
 
 class LabelsCardSettings extends FormattingSettingsCard {
