@@ -376,7 +376,7 @@ class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
     
     enableScrolling = new formattingSettings.ToggleSwitch({
         name: "enableScrolling",
-        displayName: "Show all markers (overflow hidden by clipPath, no interactive scroll)",
+        displayName: "Enable mouse wheel scrolling for overflow markers",
         value: false
     });
 
