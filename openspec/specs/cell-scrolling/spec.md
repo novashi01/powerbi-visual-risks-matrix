@@ -13,15 +13,41 @@ Add simple vertical mouse-wheel scrolling for markers inside cells when content 
 
 ## Requirements
 
-- Wheel scroll inside cells with overflow should translate marker container vertically to reveal hidden markers.
-- Scroll bounds must be computed and enforced so content cannot be scrolled beyond its extent.
-- No scrolling behavior when content fits inside the cell.
-- Prevent default wheel behavior on wheel events inside scrollable cells.
-- The `enableScrolling` setting display name should be updated to reflect interactive behavior.
+### Requirement: Wheel Scroll Reveals Hidden Markers
+
+Users SHALL be able to use the mouse wheel while the pointer is over a cell with overflowed markers to translate the markers vertically and reveal hidden content.
+
+#### Scenario: Scroll to reveal overflow
+- **WHEN** the cell contains more markers than fit vertically and the user rotates the mouse wheel while hovering the cell
+- **THEN** the marker container is translated vertically to reveal hidden markers until the top or bottom bound is reached
+
+### Requirement: Enforce Scroll Bounds
+
+The visual SHALL clamp scroll offsets so content cannot be translated beyond its visible extent.
+
+#### Scenario: Scrolling stops at bounds
+- **WHEN** the user continues scrolling after the last marker is visible
+- **THEN** the marker container stops translating and further scroll input has no effect
+
+### Requirement: No Scroll When Content Fits
+
+The visual SHALL not apply any scrolling transform when the total marker height fits inside the cell.
+
+#### Scenario: Wheel does nothing when content fits
+- **WHEN** the user rotates the mouse wheel over a cell whose markers already fit entirely in view
+- **THEN** no translate transform is applied and the default wheel behavior is not prevented
+
+### Requirement: Prevent Default Wheel Inside Scrollable Cells
+
+When a cell is scrollable, the visual SHALL prevent the browser's default wheel behavior for the event so the interaction remains scoped to the cell.
+
+#### Scenario: Wheel prevented for scrollable cells
+- **WHEN** the user scrolls over a cell with overflow
+- **THEN** the visual prevents default on the wheel event while handling the scroll
 
 ### Requirement: Update Setting Display Name
 
-- Update the `enableScrolling` setting display name in `src/settings.ts` to clearly indicate interactive scrolling (e.g., "Enable interactive cell scrolling").
+Update the `enableScrolling` setting display name in `src/settings.ts` to clearly indicate interactive scrolling (e.g., "Enable interactive cell scrolling").
 
 #### Scenario: Setting label updated
 
