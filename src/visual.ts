@@ -474,7 +474,7 @@ export class Visual implements IVisual {
             let scrollContainer: SVGGElement | null = null;
             
             // Add interactive mouse wheel scrolling when enabled and overflow exists
-            if (enableScrolling && totalMarkers > maxMarkers) {
+            if (enableScrolling && totalMarkers >= maxMarkers) {
                 // Add transparent background rect to capture wheel events across entire cell
                 const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 bgRect.setAttribute("x", String(cellBounds.x));
@@ -491,19 +491,18 @@ export class Visual implements IVisual {
                 cellGroup.appendChild(scrollContainer);
                 markerContainer = scrollContainer; // Render markers into scroll container
                 
-                // Calculate scroll bounds
-                let minY = Infinity;
-                let maxY = -Infinity;
-                organizedMarkers.forEach(m => {
-                    minY = Math.min(minY, m.organizedY);
-                    maxY = Math.max(maxY, m.organizedY);
-                });
-                const contentHeight = maxY - minY + markerSize * 2;
+                // Calculate scroll bounds based on actual content height
+                // Content height should account for all markers, not just the visible grid
+                const totalRows = Math.ceil(totalMarkers / markerCols);
+                const cellPaddingValue = cellPadding;
+                const usableHeight = cellBounds.height - (cellPaddingValue * 2);
+                const markerSpacingY = usableHeight / markerRows;
+                const contentHeight = (totalRows * markerSpacingY) + markerSize;
                 const maxScroll = Math.min(0, cellBounds.height - contentHeight);
                 
-                // Add wheel event listener for vertical scrolling
+                // Add wheel event listener to cellGroup (captures events from markers and background)
                 let offsetY = 0;
-                bgRect.addEventListener('wheel', (e: WheelEvent) => {
+                cellGroup.addEventListener('wheel', (e: WheelEvent) => {
                     e.preventDefault();
                     offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
                     scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
@@ -587,7 +586,7 @@ export class Visual implements IVisual {
                 
                 // Add interactive mouse wheel scrolling for inherent markers when enabled and overflow exists
                 const totalInherentMarkers = inherentCellMarkers[cellKey].length;
-                if (enableScrolling && totalInherentMarkers > maxMarkers) {
+                if (enableScrolling && totalInherentMarkers >= maxMarkers) {
                     // Add transparent background rect to capture wheel events across entire cell
                     const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     bgRect.setAttribute("x", String(cellBounds.x));
@@ -604,19 +603,18 @@ export class Visual implements IVisual {
                     cellGroup.appendChild(scrollContainer);
                     markerContainer = scrollContainer; // Render markers into scroll container
                     
-                    // Calculate scroll bounds
-                    let minY = Infinity;
-                    let maxY = -Infinity;
-                    organizedMarkers.forEach(m => {
-                        minY = Math.min(minY, m.organizedY);
-                        maxY = Math.max(maxY, m.organizedY);
-                    });
-                    const contentHeight = maxY - minY + markerSize * 2;
+                    // Calculate scroll bounds based on actual content height
+                    // Content height should account for all markers, not just the visible grid
+                    const totalRows = Math.ceil(totalInherentMarkers / markerCols);
+                    const cellPaddingValue = cellPadding;
+                    const usableHeight = cellBounds.height - (cellPaddingValue * 2);
+                    const markerSpacingY = usableHeight / markerRows;
+                    const contentHeight = (totalRows * markerSpacingY) + markerSize;
                     const maxScroll = Math.min(0, cellBounds.height - contentHeight);
                     
-                    // Add wheel event listener for vertical scrolling
+                    // Add wheel event listener to cellGroup (captures events from markers and background)
                     let offsetY = 0;
-                    bgRect.addEventListener('wheel', (e: WheelEvent) => {
+                    cellGroup.addEventListener('wheel', (e: WheelEvent) => {
                         e.preventDefault();
                         offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
                         scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
