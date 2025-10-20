@@ -410,7 +410,7 @@ export class Visual implements IVisual {
         // Store organized positions for arrow drawing
         const organizedPositions: { [riskId: string]: { inherent?: {x: number, y: number}, residual?: {x: number, y: number} } } = {};
         
-        const enableScrolling = this.formattingSettings?.riskMarkersLayoutCard?.enableScrolling?.value ?? true;
+        const enableScrolling = this.formattingSettings?.riskMarkersLayoutCard?.enableScrolling?.value ?? false;
         const maxMarkers = markerRows * markerCols;
         const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
         const animationEnabled = this.formattingSettings.animationCard.enabled.value ?? false;
@@ -672,7 +672,7 @@ export class Visual implements IVisual {
     }
     
     private organizeMarkersInCell(markers: any[], cellBounds: {x: number, y: number, width: number, height: number}, padding: number, rows: number, cols: number): any[] {
-        const enableScrolling = this.formattingSettings?.riskMarkersLayoutCard?.enableScrolling?.value ?? true;
+        const enableScrolling = this.formattingSettings?.riskMarkersLayoutCard?.enableScrolling?.value ?? false;
         const usableWidth = cellBounds.width - (padding * 2);
         const usableHeight = cellBounds.height - (padding * 2);
         
