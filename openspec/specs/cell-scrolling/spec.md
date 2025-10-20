@@ -1,6 +1,11 @@
 # Spec: cell-scrolling
 
+
 This spec defines the "cell-scrolling" capability for the Risk Matrix visual.
+
+## Purpose
+
+Provide per-cell vertical scrolling for marker lists when their rendered height exceeds the visible cell area. This enables users to access clipped markers using the mouse wheel without changing cell sizes.
 
 ## Summary
 
@@ -17,6 +22,11 @@ Add simple vertical mouse-wheel scrolling for markers inside cells when content 
 ### Requirement: Update Setting Display Name
 
 - Update the `enableScrolling` setting display name in `src/settings.ts` to clearly indicate interactive scrolling (e.g., "Enable interactive cell scrolling").
+
+#### Scenario: Setting label updated
+
+- **WHEN** a developer inspects the `enableScrolling` option in `src/settings.ts`
+- **THEN** the display name string reflects interactive cell scrolling (for example: "Enable interactive cell scrolling")
 
 ## Implementation notes
 
