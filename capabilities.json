@@ -153,6 +153,7 @@
         "markerRows": { "displayName": "Marker rows (per cell)", "type": { "numeric": true } },
         "markerColumns": { "displayName": "Marker columns (per cell)", "type": { "numeric": true } },
         "cellPadding": { "displayName": "Cell padding", "type": { "numeric": true } },
+        "enableScrolling": { "displayName": "Enable mouse wheel scrolling for overflow markers", "type": { "bool": true } },
         "showInherentInOrganized": { "displayName": "Show inherent risks", "type": { "bool": true } },
         "inherentTransparency": { "displayName": "Inherent transparency (%)", "type": { "numeric": true } },
         "organizedArrows": { "displayName": "Show arrows in organized mode", "type": { "bool": true } }
