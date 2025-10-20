@@ -412,6 +412,7 @@ export class Visual implements IVisual {
         
         const enableScrolling = this.formattingSettings?.riskMarkersLayoutCard?.enableScrolling?.value ?? true;
         const maxMarkers = markerRows * markerCols;
+        const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
         const animationEnabled = this.formattingSettings.animationCard.enabled.value ?? false;
         const animationDuration = this.formattingSettings.animationCard.durationMs.value || 1000;
         
@@ -485,6 +486,38 @@ export class Visual implements IVisual {
             
             this.gPoints.appendChild(cellGroup);
             
+            // Add interactive mouse wheel scrolling when enabled and overflow exists
+            if (enableScrolling && totalMarkers > maxMarkers) {
+                // Wrap all markers in a scroll container for transform-based scrolling
+                const scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                scrollContainer.setAttribute("class", "scroll-container");
+                
+                // Move all cellGroup children into scroll container
+                const children = Array.from(cellGroup.children);
+                children.forEach(child => scrollContainer.appendChild(child));
+                cellGroup.appendChild(scrollContainer);
+                
+                // Calculate scroll bounds based on content height vs cell height
+                let minY = Infinity;
+                let maxY = -Infinity;
+                organizedMarkers.forEach(m => {
+                    minY = Math.min(minY, m.organizedY);
+                    maxY = Math.max(maxY, m.organizedY);
+                });
+                const contentHeight = maxY - minY + markerSize * 2;
+                const maxScroll = Math.min(0, cellBounds.height - contentHeight);
+                
+                // Add wheel event listener for vertical scrolling
+                let offsetY = 0;
+                cellGroup.addEventListener('wheel', (e: WheelEvent) => {
+                    e.preventDefault(); // Prevent page scroll
+                    // Update offset and clamp to bounds
+                    offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
+                    // Apply transform to scroll container
+                    scrollContainer.setAttribute('transform', `translate(0, ${offsetY})`);
+                });
+            }
+            
             // Show overflow indicator if there are more markers than grid can show (only when scrolling disabled)
             if (!enableScrolling && overflowCount > 0) {
                 const lastMarker = organizedMarkers[maxMarkers - 1];
@@ -555,6 +588,39 @@ export class Visual implements IVisual {
                 });
                 
                 this.gPoints.appendChild(cellGroup);
+                
+                // Add interactive mouse wheel scrolling for inherent markers when enabled and overflow exists
+                const totalInherentMarkers = inherentCellMarkers[cellKey].length;
+                if (enableScrolling && totalInherentMarkers > maxMarkers) {
+                    // Wrap all markers in a scroll container for transform-based scrolling
+                    const scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    scrollContainer.setAttribute("class", "scroll-container");
+                    
+                    // Move all cellGroup children into scroll container
+                    const children = Array.from(cellGroup.children);
+                    children.forEach(child => scrollContainer.appendChild(child));
+                    cellGroup.appendChild(scrollContainer);
+                    
+                    // Calculate scroll bounds based on content height vs cell height
+                    let minY = Infinity;
+                    let maxY = -Infinity;
+                    organizedMarkers.forEach(m => {
+                        minY = Math.min(minY, m.organizedY);
+                        maxY = Math.max(maxY, m.organizedY);
+                    });
+                    const contentHeight = maxY - minY + markerSize * 2;
+                    const maxScroll = Math.min(0, cellBounds.height - contentHeight);
+                    
+                    // Add wheel event listener for vertical scrolling
+                    let offsetY = 0;
+                    cellGroup.addEventListener('wheel', (e: WheelEvent) => {
+                        e.preventDefault(); // Prevent page scroll
+                        // Update offset and clamp to bounds
+                        offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
+                        // Apply transform to scroll container
+                        scrollContainer.setAttribute('transform', `translate(0, ${offsetY})`);
+                    });
+                }
             });
         }
         

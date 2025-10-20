@@ -1,7 +1,7 @@
 {
   "name": "powerbi-visual-risks-matrix",
   "description": "Power BI custom visual: Risk Matrix with inherent→residual arrows.",
-  "version": "1.3.4",
+  "version": "1.4.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/novashi01/powerbi-visual-risks-matrix.git"
