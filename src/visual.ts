@@ -482,7 +482,7 @@ export class Visual implements IVisual {
                 bgRect.setAttribute("width", String(cellBounds.width));
                 bgRect.setAttribute("height", String(cellBounds.height));
                 bgRect.setAttribute("fill", "transparent");
-                bgRect.setAttribute("pointer-events", "all"); // Capture events in empty areas
+                bgRect.setAttribute("pointer-events", "visible"); // Only capture on visible/rendered area
                 bgRect.setAttribute("class", "scroll-background");
                 cellGroup.appendChild(bgRect); // Add FIRST so it's behind markers
                 
@@ -596,7 +596,7 @@ export class Visual implements IVisual {
                     bgRect.setAttribute("width", String(cellBounds.width));
                     bgRect.setAttribute("height", String(cellBounds.height));
                     bgRect.setAttribute("fill", "transparent");
-                    bgRect.setAttribute("pointer-events", "all"); // Capture events in empty areas
+                    bgRect.setAttribute("pointer-events", "visible"); // Only capture on visible/rendered area
                     bgRect.setAttribute("class", "scroll-background");
                     cellGroup.appendChild(bgRect); // Add FIRST so it's behind markers
                     
