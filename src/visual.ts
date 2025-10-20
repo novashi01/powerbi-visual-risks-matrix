@@ -475,7 +475,18 @@ export class Visual implements IVisual {
             
             // Add interactive mouse wheel scrolling when enabled and overflow exists
             if (enableScrolling && totalMarkers >= maxMarkers) {
-                // Create scroll container for markers FIRST
+                // Add transparent background rect FIRST to capture wheel events in empty areas
+                const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                bgRect.setAttribute("x", String(cellBounds.x));
+                bgRect.setAttribute("y", String(cellBounds.y));
+                bgRect.setAttribute("width", String(cellBounds.width));
+                bgRect.setAttribute("height", String(cellBounds.height));
+                bgRect.setAttribute("fill", "transparent");
+                bgRect.setAttribute("pointer-events", "all"); // Capture events in empty areas
+                bgRect.setAttribute("class", "scroll-background");
+                cellGroup.appendChild(bgRect); // Add FIRST so it's behind markers
+                
+                // Create scroll container for markers SECOND (on top of background)
                 scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 scrollContainer.setAttribute("class", "scroll-container");
                 cellGroup.appendChild(scrollContainer);
@@ -490,22 +501,10 @@ export class Visual implements IVisual {
                 const contentHeight = (totalRows * markerSpacingY) + markerSize;
                 const maxScroll = Math.min(0, cellBounds.height - contentHeight);
                 
-                // Add transparent overlay rect AFTER scroll container to capture wheel events only
-                const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                bgRect.setAttribute("x", String(cellBounds.x));
-                bgRect.setAttribute("y", String(cellBounds.y));
-                bgRect.setAttribute("width", String(cellBounds.width));
-                bgRect.setAttribute("height", String(cellBounds.height));
-                bgRect.setAttribute("fill", "transparent");
-                bgRect.setAttribute("pointer-events", "none"); // Don't block clicks, only listen for wheel via event listener
-                bgRect.setAttribute("class", "scroll-overlay");
-                cellGroup.appendChild(bgRect); // Add AFTER scroll container so it's on top
-                
-                // Add wheel event listener to cellGroup for comprehensive event capture
+                // Add wheel event listener to cellGroup (captures from both bgRect and markers)
                 let offsetY = 0;
                 const handleWheel = (e: WheelEvent) => {
                     e.preventDefault();
-                    e.stopPropagation();
                     offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
                     scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
                 };
@@ -590,7 +589,18 @@ export class Visual implements IVisual {
                 // Add interactive mouse wheel scrolling for inherent markers when enabled and overflow exists
                 const totalInherentMarkers = inherentCellMarkers[cellKey].length;
                 if (enableScrolling && totalInherentMarkers >= maxMarkers) {
-                    // Create scroll container for markers FIRST
+                    // Add transparent background rect FIRST to capture wheel events in empty areas
+                    const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    bgRect.setAttribute("x", String(cellBounds.x));
+                    bgRect.setAttribute("y", String(cellBounds.y));
+                    bgRect.setAttribute("width", String(cellBounds.width));
+                    bgRect.setAttribute("height", String(cellBounds.height));
+                    bgRect.setAttribute("fill", "transparent");
+                    bgRect.setAttribute("pointer-events", "all"); // Capture events in empty areas
+                    bgRect.setAttribute("class", "scroll-background");
+                    cellGroup.appendChild(bgRect); // Add FIRST so it's behind markers
+                    
+                    // Create scroll container for markers SECOND (on top of background)
                     scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
                     scrollContainer.setAttribute("class", "scroll-container");
                     cellGroup.appendChild(scrollContainer);
@@ -605,22 +615,10 @@ export class Visual implements IVisual {
                     const contentHeight = (totalRows * markerSpacingY) + markerSize;
                     const maxScroll = Math.min(0, cellBounds.height - contentHeight);
                     
-                    // Add transparent overlay rect AFTER scroll container to capture wheel events only
-                    const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                    bgRect.setAttribute("x", String(cellBounds.x));
-                    bgRect.setAttribute("y", String(cellBounds.y));
-                    bgRect.setAttribute("width", String(cellBounds.width));
-                    bgRect.setAttribute("height", String(cellBounds.height));
-                    bgRect.setAttribute("fill", "transparent");
-                    bgRect.setAttribute("pointer-events", "none"); // Don't block clicks, only listen for wheel via event listener
-                    bgRect.setAttribute("class", "scroll-overlay");
-                    cellGroup.appendChild(bgRect); // Add AFTER scroll container so it's on top
-                    
-                    // Add wheel event listener to cellGroup for comprehensive event capture
+                    // Add wheel event listener to cellGroup (captures from both bgRect and markers)
                     let offsetY = 0;
                     const handleWheel = (e: WheelEvent) => {
                         e.preventDefault();
-                        e.stopPropagation();
                         offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
                         scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
                     };
