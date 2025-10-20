@@ -469,35 +469,29 @@ export class Visual implements IVisual {
             const totalMarkers = residualCellMarkers[cellKey].length;
             const overflowCount = totalMarkers - maxMarkers;
             
-            // Render residual markers and store positions
-            organizedMarkers.forEach((marker, idx) => {
-                // When scrolling is disabled, skip overflow markers
-                // When scrolling is enabled, render ALL markers (clipPath will hide overflow)
-                if (!enableScrolling && marker.isOverflow) return;
-                
-                const riskId = marker.data.id;
-                if (!organizedPositions[riskId]) {
-                    organizedPositions[riskId] = {};
-                }
-                organizedPositions[riskId].residual = { x: marker.organizedX, y: marker.organizedY };
-                
-                this.renderSingleMarkerToGroup(cellGroup, marker, sm, 'residual');
-            });
-            
-            this.gPoints.appendChild(cellGroup);
+            // Determine target container for markers
+            let markerContainer = cellGroup;
+            let scrollContainer: SVGGElement | null = null;
             
             // Add interactive mouse wheel scrolling when enabled and overflow exists
             if (enableScrolling && totalMarkers > maxMarkers) {
-                // Wrap all markers in a scroll container for transform-based scrolling
-                const scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                // Add transparent background rect to capture wheel events across entire cell
+                const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                bgRect.setAttribute("x", String(cellBounds.x));
+                bgRect.setAttribute("y", String(cellBounds.y));
+                bgRect.setAttribute("width", String(cellBounds.width));
+                bgRect.setAttribute("height", String(cellBounds.height));
+                bgRect.setAttribute("fill", "transparent");
+                bgRect.setAttribute("pointer-events", "all");
+                cellGroup.appendChild(bgRect);
+                
+                // Create scroll container for markers
+                scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 scrollContainer.setAttribute("class", "scroll-container");
-                
-                // Move all cellGroup children into scroll container
-                const children = Array.from(cellGroup.children);
-                children.forEach(child => scrollContainer.appendChild(child));
                 cellGroup.appendChild(scrollContainer);
+                markerContainer = scrollContainer; // Render markers into scroll container
                 
-                // Calculate scroll bounds based on content height vs cell height
+                // Calculate scroll bounds
                 let minY = Infinity;
                 let maxY = -Infinity;
                 organizedMarkers.forEach(m => {
@@ -509,14 +503,29 @@ export class Visual implements IVisual {
                 
                 // Add wheel event listener for vertical scrolling
                 let offsetY = 0;
-                cellGroup.addEventListener('wheel', (e: WheelEvent) => {
-                    e.preventDefault(); // Prevent page scroll
-                    // Update offset and clamp to bounds
+                bgRect.addEventListener('wheel', (e: WheelEvent) => {
+                    e.preventDefault();
                     offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
-                    // Apply transform to scroll container
-                    scrollContainer.setAttribute('transform', `translate(0, ${offsetY})`);
+                    scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
                 });
             }
+            
+            // Render residual markers into appropriate container and store positions
+            organizedMarkers.forEach((marker, idx) => {
+                // When scrolling is disabled, skip overflow markers
+                // When scrolling is enabled, render ALL markers (clipPath will hide overflow)
+                if (!enableScrolling && marker.isOverflow) return;
+                
+                const riskId = marker.data.id;
+                if (!organizedPositions[riskId]) {
+                    organizedPositions[riskId] = {};
+                }
+                organizedPositions[riskId].residual = { x: marker.organizedX, y: marker.organizedY };
+                
+                this.renderSingleMarkerToGroup(markerContainer, marker, sm, 'residual');
+            });
+            
+            this.gPoints.appendChild(cellGroup);
             
             // Show overflow indicator if there are more markers than grid can show (only when scrolling disabled)
             if (!enableScrolling && overflowCount > 0) {
@@ -572,36 +581,30 @@ export class Visual implements IVisual {
                 
                 const organizedMarkers = this.organizeMarkersInCell(inherentCellMarkers[cellKey], cellBounds, cellPadding, markerRows, markerCols);
                 
-                // Render inherent markers and store positions
-                organizedMarkers.forEach(marker => {
-                    // When scrolling is disabled, skip overflow markers
-                    // When scrolling is enabled, render ALL markers (clipPath will hide overflow)
-                    if (!enableScrolling && marker.isOverflow) return;
-                    
-                    const riskId = marker.data.id;
-                    if (!organizedPositions[riskId]) {
-                        organizedPositions[riskId] = {};
-                    }
-                    organizedPositions[riskId].inherent = { x: marker.organizedX, y: marker.organizedY };
-                    
-                    this.renderSingleMarkerToGroup(cellGroup, marker, sm, 'inherent');
-                });
-                
-                this.gPoints.appendChild(cellGroup);
+                // Determine target container for markers
+                let markerContainer = cellGroup;
+                let scrollContainer: SVGGElement | null = null;
                 
                 // Add interactive mouse wheel scrolling for inherent markers when enabled and overflow exists
                 const totalInherentMarkers = inherentCellMarkers[cellKey].length;
                 if (enableScrolling && totalInherentMarkers > maxMarkers) {
-                    // Wrap all markers in a scroll container for transform-based scrolling
-                    const scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    // Add transparent background rect to capture wheel events across entire cell
+                    const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    bgRect.setAttribute("x", String(cellBounds.x));
+                    bgRect.setAttribute("y", String(cellBounds.y));
+                    bgRect.setAttribute("width", String(cellBounds.width));
+                    bgRect.setAttribute("height", String(cellBounds.height));
+                    bgRect.setAttribute("fill", "transparent");
+                    bgRect.setAttribute("pointer-events", "all");
+                    cellGroup.appendChild(bgRect);
+                    
+                    // Create scroll container for markers
+                    scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
                     scrollContainer.setAttribute("class", "scroll-container");
-                    
-                    // Move all cellGroup children into scroll container
-                    const children = Array.from(cellGroup.children);
-                    children.forEach(child => scrollContainer.appendChild(child));
                     cellGroup.appendChild(scrollContainer);
+                    markerContainer = scrollContainer; // Render markers into scroll container
                     
-                    // Calculate scroll bounds based on content height vs cell height
+                    // Calculate scroll bounds
                     let minY = Infinity;
                     let maxY = -Infinity;
                     organizedMarkers.forEach(m => {
@@ -613,14 +616,29 @@ export class Visual implements IVisual {
                     
                     // Add wheel event listener for vertical scrolling
                     let offsetY = 0;
-                    cellGroup.addEventListener('wheel', (e: WheelEvent) => {
-                        e.preventDefault(); // Prevent page scroll
-                        // Update offset and clamp to bounds
+                    bgRect.addEventListener('wheel', (e: WheelEvent) => {
+                        e.preventDefault();
                         offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
-                        // Apply transform to scroll container
-                        scrollContainer.setAttribute('transform', `translate(0, ${offsetY})`);
+                        scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
                     });
                 }
+                
+                // Render inherent markers into appropriate container and store positions
+                organizedMarkers.forEach(marker => {
+                    // When scrolling is disabled, skip overflow markers
+                    // When scrolling is enabled, render ALL markers (clipPath will hide overflow)
+                    if (!enableScrolling && marker.isOverflow) return;
+                    
+                    const riskId = marker.data.id;
+                    if (!organizedPositions[riskId]) {
+                        organizedPositions[riskId] = {};
+                    }
+                    organizedPositions[riskId].inherent = { x: marker.organizedX, y: marker.organizedY };
+                    
+                    this.renderSingleMarkerToGroup(markerContainer, marker, sm, 'inherent');
+                });
+                
+                this.gPoints.appendChild(cellGroup);
             });
         }
         
