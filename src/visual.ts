@@ -475,17 +475,7 @@ export class Visual implements IVisual {
             
             // Add interactive mouse wheel scrolling when enabled and overflow exists
             if (enableScrolling && totalMarkers >= maxMarkers) {
-                // Add transparent background rect to capture wheel events across entire cell
-                const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                bgRect.setAttribute("x", String(cellBounds.x));
-                bgRect.setAttribute("y", String(cellBounds.y));
-                bgRect.setAttribute("width", String(cellBounds.width));
-                bgRect.setAttribute("height", String(cellBounds.height));
-                bgRect.setAttribute("fill", "transparent");
-                bgRect.setAttribute("pointer-events", "all");
-                cellGroup.appendChild(bgRect);
-                
-                // Create scroll container for markers
+                // Create scroll container for markers FIRST
                 scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 scrollContainer.setAttribute("class", "scroll-container");
                 cellGroup.appendChild(scrollContainer);
@@ -500,13 +490,26 @@ export class Visual implements IVisual {
                 const contentHeight = (totalRows * markerSpacingY) + markerSize;
                 const maxScroll = Math.min(0, cellBounds.height - contentHeight);
                 
-                // Add wheel event listener to cellGroup (captures events from markers and background)
+                // Add transparent overlay rect AFTER scroll container to capture wheel events only
+                const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                bgRect.setAttribute("x", String(cellBounds.x));
+                bgRect.setAttribute("y", String(cellBounds.y));
+                bgRect.setAttribute("width", String(cellBounds.width));
+                bgRect.setAttribute("height", String(cellBounds.height));
+                bgRect.setAttribute("fill", "transparent");
+                bgRect.setAttribute("pointer-events", "none"); // Don't block clicks, only listen for wheel via event listener
+                bgRect.setAttribute("class", "scroll-overlay");
+                cellGroup.appendChild(bgRect); // Add AFTER scroll container so it's on top
+                
+                // Add wheel event listener to cellGroup for comprehensive event capture
                 let offsetY = 0;
-                cellGroup.addEventListener('wheel', (e: WheelEvent) => {
+                const handleWheel = (e: WheelEvent) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
                     scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
-                });
+                };
+                cellGroup.addEventListener('wheel', handleWheel);
             }
             
             // Render residual markers into appropriate container and store positions
@@ -587,17 +590,7 @@ export class Visual implements IVisual {
                 // Add interactive mouse wheel scrolling for inherent markers when enabled and overflow exists
                 const totalInherentMarkers = inherentCellMarkers[cellKey].length;
                 if (enableScrolling && totalInherentMarkers >= maxMarkers) {
-                    // Add transparent background rect to capture wheel events across entire cell
-                    const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                    bgRect.setAttribute("x", String(cellBounds.x));
-                    bgRect.setAttribute("y", String(cellBounds.y));
-                    bgRect.setAttribute("width", String(cellBounds.width));
-                    bgRect.setAttribute("height", String(cellBounds.height));
-                    bgRect.setAttribute("fill", "transparent");
-                    bgRect.setAttribute("pointer-events", "all");
-                    cellGroup.appendChild(bgRect);
-                    
-                    // Create scroll container for markers
+                    // Create scroll container for markers FIRST
                     scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
                     scrollContainer.setAttribute("class", "scroll-container");
                     cellGroup.appendChild(scrollContainer);
@@ -612,13 +605,26 @@ export class Visual implements IVisual {
                     const contentHeight = (totalRows * markerSpacingY) + markerSize;
                     const maxScroll = Math.min(0, cellBounds.height - contentHeight);
                     
-                    // Add wheel event listener to cellGroup (captures events from markers and background)
+                    // Add transparent overlay rect AFTER scroll container to capture wheel events only
+                    const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    bgRect.setAttribute("x", String(cellBounds.x));
+                    bgRect.setAttribute("y", String(cellBounds.y));
+                    bgRect.setAttribute("width", String(cellBounds.width));
+                    bgRect.setAttribute("height", String(cellBounds.height));
+                    bgRect.setAttribute("fill", "transparent");
+                    bgRect.setAttribute("pointer-events", "none"); // Don't block clicks, only listen for wheel via event listener
+                    bgRect.setAttribute("class", "scroll-overlay");
+                    cellGroup.appendChild(bgRect); // Add AFTER scroll container so it's on top
+                    
+                    // Add wheel event listener to cellGroup for comprehensive event capture
                     let offsetY = 0;
-                    cellGroup.addEventListener('wheel', (e: WheelEvent) => {
+                    const handleWheel = (e: WheelEvent) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
                         scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
-                    });
+                    };
+                    cellGroup.addEventListener('wheel', handleWheel);
                 }
                 
                 // Render inherent markers into appropriate container and store positions
@@ -665,6 +671,7 @@ export class Visual implements IVisual {
                     line.setAttribute("stroke-opacity", String(arrowOpacity));
                     line.setAttribute("stroke-width", "1.5");
                     line.setAttribute("marker-end", "url(#arrow)");
+                    line.setAttribute("pointer-events", "none"); // Don't block scroll events
                     
                     // Animation for arrows - show SECOND (after inherent markers), HIDE with inherent
                     if (animationEnabled) {
@@ -879,19 +886,23 @@ export class Visual implements IVisual {
         (element as any).__visible = true;
 
         if (animationEnabled) {
-            const inherentFadeStart = Math.ceil(animationDuration * 2.5);
-            const residualBuffer = Math.max(75, Math.ceil(animationDuration * 0.3));
-            const residualDelay = inherentFadeStart + animationDuration + residualBuffer;
+            // Animation sequence:
+            // 0ms: Inherent markers fade in
+            // animationDuration (1000ms): Arrows fade in
+            // animationDuration * 2 (2000ms): Residual markers fade in (AFTER arrows, BEFORE inherent disappears)
+            // animationDuration * 2.5 (2500ms): Inherent markers + arrows fade out together
+            const inherentFadeOutStart = Math.ceil(animationDuration * 2.5);
+            const residualFadeInStart = Math.ceil(animationDuration * 2); // Show after arrows
             
             if (type === 'inherent') {
-                // Inherent: fade in immediately, then fade out
+                // Inherent: fade in immediately, then fade out at 2.5x
                 markerGroup.setAttribute('opacity', '0');
                 setTimeout(() => {
                     markerGroup.style.transition = `opacity ${animationDuration}ms ease-in`;
                     markerGroup.setAttribute('opacity', '1');
                 }, 10);
                 
-                // Fade out inherent after display period
+                // Fade out inherent at 2.5x duration
                 setTimeout(() => {
                     markerGroup.style.transition = `opacity ${animationDuration}ms ease-out`;
                     markerGroup.setAttribute('opacity', '0');
@@ -901,19 +912,17 @@ export class Visual implements IVisual {
                         (element as any).__visible = false;
                         try { (markerGroup as any).style.pointerEvents = 'none'; } catch (e) {}
                     }, animationDuration);
-                }, inherentFadeStart);
+                }, inherentFadeOutStart);
             } else {
-                // Residual: start hidden, show after inherent fades out
+                // Residual: start visible with opacity 0, fade in at 2x duration (after arrows appear, before inherent disappears)
                 markerGroup.setAttribute('opacity', '0');
-                markerGroup.setAttribute('display', 'none');
-                try { (markerGroup as any).style.pointerEvents = 'none'; } catch (e) {}
+                // Don't use display:none - keep visible for scrolling and pointer events
+                try { (markerGroup as any).style.pointerEvents = 'auto'; } catch (e) {}
                 
                 setTimeout(() => {
-                    markerGroup.removeAttribute('display');
                     markerGroup.style.transition = `opacity ${animationDuration}ms ease-in`;
                     markerGroup.setAttribute('opacity', '1');
-                    try { (markerGroup as any).style.pointerEvents = 'auto'; } catch (e) {}
-                }, residualDelay);
+                }, residualFadeInStart);
             }
         }
         
@@ -1125,6 +1134,7 @@ export class Visual implements IVisual {
             line.setAttribute("stroke-opacity", String(arrowOpacity));
             line.setAttribute("stroke-width", "1.5"); 
             line.setAttribute("marker-end", "url(#arrow)");
+            line.setAttribute("pointer-events", "none"); // Don't block scroll events
             // Animate arrow opacity in sequence when animation enabled
             if (animationEnabled) {
                 line.setAttribute('opacity', '0');
