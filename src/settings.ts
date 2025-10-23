@@ -397,6 +397,16 @@ class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
         value: false
     });
 
+    scrollFadeDepth = new formattingSettings.NumUpDown({
+        name: "scrollFadeDepth",
+        displayName: "Scroll fade depth (px)",
+        value: 16,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 60, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
     showInherentInOrganized = new formattingSettings.ToggleSwitch({
         name: "showInherentInOrganized",
         displayName: "Show inherent risks",
@@ -427,6 +437,7 @@ class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
         this.markerColumns,
         this.cellPadding,
         this.enableScrolling,
+        this.scrollFadeDepth,
         this.showInherentInOrganized,
         this.inherentTransparency,
         this.organizedArrows
