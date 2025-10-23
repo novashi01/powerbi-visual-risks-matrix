@@ -329,7 +329,24 @@ class MatrixGridCardSettings extends FormattingSettingsCard {
 
     name: string = "matrixGrid";
     displayName: string = "Matrix Grid";
-    slices: Array<FormattingSettingsSlice> = [this.matrixRows, this.matrixColumns];
+    // New settings: severity transparency (%) and grid border color
+    severityTransparency = new formattingSettings.NumUpDown({
+        name: "severityTransparency",
+        displayName: "Severity color transparency (%)",
+        value: 25,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 100, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    gridBorderColor = new formattingSettings.ColorPicker({
+        name: "gridBorderColor",
+        displayName: "Grid border color",
+        value: { value: "#cccccc" }
+    });
+
+    slices: Array<FormattingSettingsSlice> = [this.matrixRows, this.matrixColumns, this.severityTransparency, this.gridBorderColor];
 }
 
 class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
@@ -380,6 +397,16 @@ class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
         value: false
     });
 
+    scrollFadeDepth = new formattingSettings.NumUpDown({
+        name: "scrollFadeDepth",
+        displayName: "Scroll fade depth (px)",
+        value: 16,
+        options: {
+            minValue: { value: 0, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 60, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
     showInherentInOrganized = new formattingSettings.ToggleSwitch({
         name: "showInherentInOrganized",
         displayName: "Show inherent risks",
@@ -410,6 +437,7 @@ class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
         this.markerColumns,
         this.cellPadding,
         this.enableScrolling,
+        this.scrollFadeDepth,
         this.showInherentInOrganized,
         this.inherentTransparency,
         this.organizedArrows
@@ -417,7 +445,6 @@ class RiskMarkersLayoutCardSettings extends FormattingSettingsCard {
 }
 
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
-    dataPointCard = new DataPointCardSettings();
     severityCard = new SeverityCardSettings();
     thresholdsCard = new ThresholdsCardSettings();
     axesCard = new AxesCardSettings();
@@ -430,7 +457,6 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     riskMarkersLayoutCard = new RiskMarkersLayoutCardSettings();
 
     cards = [
-        this.dataPointCard,
         this.severityCard,
         this.thresholdsCard,
         this.axesCard,

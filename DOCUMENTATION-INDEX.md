@@ -36,6 +36,7 @@
 | File | Size | Purpose | When to Use |
 |------|------|---------|-------------|
 | **RELEASE-NOTES-v1.3.2.md** | 9KB | What's new in v1.3.2, how to use, examples | Understanding latest features, getting started |
+| **NOTES** | <1KB | Matrix grid color configuration notes | New settings: severity transparency and grid border color |
 | **RELEASE-NOTES-v1.3.1.md** | 6KB | What's new in v1.3.1 | Previous version reference |
 | **VERSION-1.3.2.md** | 11KB | Version info, migration guide, technical details | Upgrading from previous versions |
 | **VERSION-1.3.1.md** | 5KB | Previous version info | Older version reference |

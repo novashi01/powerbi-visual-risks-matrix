@@ -16,6 +16,7 @@ import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import { VisualFormattingSettingsModel } from "./settings";
+import { applyScrollFadeMask } from "./scrollFade";
 import "./../style/visual.less";
 
 interface RiskPoint {
@@ -178,8 +179,13 @@ export class Visual implements IVisual {
                 rect.setAttribute("x", String(m.l + x * cw));
                 rect.setAttribute("y", String(m.t + y * ch));
                 rect.setAttribute("width", String(cw)); rect.setAttribute("height", String(ch));
-                rect.setAttribute("fill", this.getSeverityColor(score)); rect.setAttribute("fill-opacity", "0.25");
-                rect.setAttribute("stroke", "#ccc"); rect.setAttribute("stroke-width", "1");
+                rect.setAttribute("fill", this.getSeverityColor(score));
+                // Use configured severity transparency (percentage -> opacity)
+                const severityTransparency = (this.formattingSettings?.matrixGridCard?.severityTransparency?.value ?? 25) / 100;
+                rect.setAttribute("fill-opacity", String(severityTransparency));
+                // Use configured grid border color
+                const borderColor = this.formattingSettings?.matrixGridCard?.gridBorderColor?.value?.value || "#cccccc";
+                rect.setAttribute("stroke", borderColor); rect.setAttribute("stroke-width", "1");
                 this.gGrid.appendChild(rect);
             }
         }
@@ -411,6 +417,8 @@ export class Visual implements IVisual {
         const organizedPositions: { [riskId: string]: { inherent?: {x: number, y: number}, residual?: {x: number, y: number} } } = {};
         
         const enableScrolling = this.formattingSettings?.riskMarkersLayoutCard?.enableScrolling?.value ?? false;
+        const scrollFadeDepthSetting = this.formattingSettings?.riskMarkersLayoutCard?.scrollFadeDepth?.value;
+        const scrollFadeDepth = Math.max(0, scrollFadeDepthSetting ?? 16);
         const maxMarkers = markerRows * markerCols;
         const markerSize = this.formattingSettings.markersCard.size.value ?? 6;
         const animationEnabled = this.formattingSettings.animationCard.enabled.value ?? false;
@@ -497,6 +505,8 @@ export class Visual implements IVisual {
                     scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
                 };
                 cellGroup.addEventListener('wheel', handleWheel);
+
+                applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}`, scrollContainer, scrollFadeDepth);
             }
             
             // Render residual markers into appropriate container and store positions
@@ -599,6 +609,8 @@ export class Visual implements IVisual {
                         scrollContainer!.setAttribute('transform', `translate(0, ${offsetY})`);
                     };
                     cellGroup.addEventListener('wheel', handleWheel);
+
+                    applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}-inherent`, scrollContainer, scrollFadeDepth);
                 }
                 
                 // Render inherent markers into appropriate container and store positions
