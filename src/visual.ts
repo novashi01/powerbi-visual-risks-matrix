@@ -506,8 +506,7 @@ export class Visual implements IVisual {
                 };
                 cellGroup.addEventListener('wheel', handleWheel);
 
-                // Apply mask to the stationary cellGroup (anchored to grid border)
-                applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}`, cellGroup, scrollFadeDepth);
+                applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}`, scrollContainer, scrollFadeDepth);
             }
             
             // Render residual markers into appropriate container and store positions
@@ -611,8 +610,7 @@ export class Visual implements IVisual {
                     };
                     cellGroup.addEventListener('wheel', handleWheel);
 
-                    // Apply mask to the stationary cellGroup for inherent markers as well
-                    applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}-inherent`, cellGroup, scrollFadeDepth);
+                    applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}-inherent`, scrollContainer, scrollFadeDepth);
                 }
                 
                 // Render inherent markers into appropriate container and store positions
