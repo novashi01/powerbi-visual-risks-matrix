@@ -34,6 +34,8 @@ export class Visual implements IVisual {
     private gGrid: SVGGElement;
     private gArrows: SVGGElement;
     private gPoints: SVGGElement;
+    // Track active click animations per element so we can cancel/restart without blinking
+    private activeClickAnims: WeakMap<Element, Animation> = new WeakMap();
     private formattingSettings: VisualFormattingSettingsModel;
     private formattingSettingsService: FormattingSettingsService;
 
@@ -127,6 +129,32 @@ export class Visual implements IVisual {
             const opacity = !hasSelection || isSelected ? '1' : String(alpha);
             (el as SVGCircleElement).setAttribute('opacity', opacity);
         });
+
+        // Additionally, if a selection exists, temporarily disable the scroll fade mask on any
+        // cell group that contains a selected marker so the selected marker does not appear
+        // faded/"vague" by the gradient. Restore masks on cells without selected markers.
+        try {
+            const cellGroups = Array.from(this.gPoints.querySelectorAll('g.cell-group')) as SVGGElement[];
+            cellGroups.forEach(cg => {
+                const maskValue = cg.getAttribute('data-scroll-mask');
+                // Determine if this cell contains any selected element (markerGroup or circle)
+                const containsSelected = hasSelection && Array.from(cg.querySelectorAll('*')).some(el => {
+                    const s = (el as any).__sel as ISelectionId | undefined;
+                    if (!s) return false;
+                    return selections.some(selectedId => JSON.stringify(selectedId) === JSON.stringify(s));
+                });
+
+                if (containsSelected) {
+                    // remove mask while selected to avoid appearing faded
+                    if (cg.hasAttribute('mask')) cg.removeAttribute('mask');
+                } else {
+                    // restore mask if we previously stored one
+                    if (maskValue) cg.setAttribute('mask', maskValue);
+                }
+            });
+        } catch (e) {
+            // Non-fatal if DOM traversal fails in test environment
+        }
     }
 
     private resize(vp: IViewport) {
@@ -466,6 +494,7 @@ export class Visual implements IVisual {
             
             // Create a group for this cell's markers
             const cellGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            cellGroup.setAttribute('class', (cellGroup.getAttribute('class') || '') + ' cell-group');
             if (enableScrolling) {
                 // Apply clipPath to enforce cell boundaries
                 cellGroup.setAttribute("clip-path", `url(#${clipPathId})`);
@@ -506,7 +535,12 @@ export class Visual implements IVisual {
                 };
                 cellGroup.addEventListener('wheel', handleWheel);
 
-                applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}`, scrollContainer, scrollFadeDepth);
+                // Anchor the fade mask to the static cell group (cellGroup) so the gradient stays fixed
+                // while the inner scrollContainer translates. Previously binding the mask to the scroll
+                // container caused the gradient to move with the markers.
+                applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}`, cellGroup, scrollFadeDepth);
+                // remember the mask id so we can temporarily disable it on selection
+                cellGroup.setAttribute('data-scroll-mask', `url(#scroll-fade-${cellKey}-mask)`);
             }
             
             // Render residual markers into appropriate container and store positions
@@ -610,7 +644,9 @@ export class Visual implements IVisual {
                     };
                     cellGroup.addEventListener('wheel', handleWheel);
 
-                    applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}-inherent`, scrollContainer, scrollFadeDepth);
+                    // Anchor change for inherent markers as well
+                    applyScrollFadeMask(defs, cellBounds, `scroll-fade-${cellKey}-inherent`, cellGroup, scrollFadeDepth);
+                    cellGroup.setAttribute('data-scroll-mask', `url(#scroll-fade-${cellKey}-inherent-mask)`);
                 }
                 
                 // Render inherent markers into appropriate container and store positions
@@ -845,8 +881,14 @@ export class Visual implements IVisual {
         }
 
         if (clickEffect) {
-            markerGroup.addEventListener('click', () => {
-                // Placeholder for click effects (selection handled later)
+            markerGroup.addEventListener('click', (evt) => {
+                // Play a single transient click animation on the visual element.
+                // Keep selection wiring separate (attached later) so we only trigger visual feedback here.
+                try {
+                    this.playClickPulse(element);
+                } catch (e) {
+                    // Non-fatal if animations are not supported in the environment
+                }
             });
         }
         
@@ -1039,6 +1081,48 @@ export class Visual implements IVisual {
                 group.appendChild(label);
             }
         }
+    }
+
+    // Play a short click pulse animation on an element. Uses Web Animations API when available,
+    // otherwise falls back to a CSS class toggle that restarts reliably.
+    private playClickPulse(el: Element) {
+        // Respect reduced motion setting
+        try {
+            if (typeof window !== 'undefined' && (window as any).matchMedia && (window as any).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                return;
+            }
+        } catch (e) {}
+
+        // If Web Animations API is available, use it for a smooth non-blinking animation
+        const WA = (el as any).animate;
+    if (typeof WA === 'function') {
+            // Cancel existing animation if present
+            const prev = this.activeClickAnims.get(el);
+            if (prev) prev.cancel();
+
+            // Animate CSS filter brightness so the marker brightens visually without changing layout/position
+            try { (el as any).style.willChange = 'filter'; } catch (e) {}
+            const anim = (el as any).animate(
+                [
+                    { filter: 'brightness(1)', offset: 0 },
+                    { filter: 'brightness(1.5)', offset: 0.3 },
+                    { filter: 'brightness(1)', offset: 1 }
+                ],
+                { duration: 320, easing: 'cubic-bezier(.2,.9,.2,1)', fill: 'forwards' }
+            );
+
+            this.activeClickAnims.set(el, anim as Animation);
+            anim.onfinish = () => this.activeClickAnims.delete(el);
+            anim.oncancel = () => this.activeClickAnims.delete(el);
+            return;
+        }
+
+        // Fallback: CSS class toggle with a double rAF restart to reduce blink risk
+        const cls = 'click-pulse';
+        el.classList.remove(cls);
+        // Force style computation then re-add on next frames
+        try { (el as Element).getBoundingClientRect(); } catch (e) {}
+        requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add(cls)));
     }
     
     private renderSingleMarker(marker: any, sm: ISelectionManager, type: 'inherent' | 'residual') {
