@@ -7,3 +7,16 @@ p {
         
     }
 }
+
+/* Click pulse fallback (used only when WA is unavailable) */
+.click-pulse {
+    /* use filter brightness so element doesn't change layout or position */
+    animation: click-pulse 320ms cubic-bezier(.2,.9,.2,1) both;
+    will-change: filter;
+}
+
+@keyframes click-pulse {
+    0% { filter: brightness(1); }
+    30% { filter: brightness(1.5); }
+    100% { filter: brightness(1); }
+}
