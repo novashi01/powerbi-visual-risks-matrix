@@ -44,6 +44,7 @@ export class Visual implements IVisual {
     private host: IVisualHost;
     private selectionManager: ISelectionManager;
     private tooltipService: ITooltipService;
+    private tooltipDiv: HTMLDivElement; // Custom tooltip element
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
@@ -70,6 +71,19 @@ export class Visual implements IVisual {
             options.element.removeChild(options.element.firstChild);
         }
         options.element.appendChild(this.svg);
+        
+        // Create custom tooltip div
+        this.tooltipDiv = document.createElement("div");
+        this.tooltipDiv.style.position = "absolute";
+        this.tooltipDiv.style.display = "none";
+        this.tooltipDiv.style.pointerEvents = "none";
+        this.tooltipDiv.style.zIndex = "10000";
+        this.tooltipDiv.style.padding = "8px 12px";
+        this.tooltipDiv.style.borderRadius = "4px";
+        this.tooltipDiv.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+        this.tooltipDiv.style.whiteSpace = "nowrap";
+        this.tooltipDiv.style.maxWidth = "300px";
+        options.element.appendChild(this.tooltipDiv);
         
         // clear any prior selection visuals
         this.selectionManager.clear();
@@ -1382,49 +1396,18 @@ export class Visual implements IVisual {
         };
     }
 
-    // Show Power BI tooltip with field data on hover
+    // Show custom HTML tooltip with full styling control
     private showTooltip(element: Element, d: RiskPoint, type: 'inherent' | 'residual') {
         try {
             const tooltipsSettings = this.formattingSettings?.tooltipsCard;
             if (!tooltipsSettings || !tooltipsSettings.show.value) return;
 
-            // Use Power BI's tooltip service to show data-driven tooltips
-            if (this.tooltipService && d.tooltipData !== undefined) {
-                const rect = (element as SVGElement).getBoundingClientRect?.() || { left: 0, top: 0 };
-                
-                // Build tooltip data with formatting options
-                const tooltipDataItems = d.tooltipData ? [{
-                    displayName: "",
-                    value: String(d.tooltipData)
-                }] : [];
-
-                // Add formatting metadata (Power BI tooltip service will apply styling)
-                const tooltipOptions: any = {
-                    coordinates: [rect.left, rect.top],
-                    isTouchEvent: false,
-                    dataItems: tooltipDataItems,
-                    identities: [d.selectionId] as any
-                };
-
-                // Apply formatting settings if provided
-                if (tooltipsSettings.textSize?.value) {
-                    tooltipOptions.fontSize = tooltipsSettings.textSize.value;
-                }
-                if (tooltipsSettings.textColor?.value?.value) {
-                    tooltipOptions.textColor = tooltipsSettings.textColor.value.value;
-                }
-                if (tooltipsSettings.backgroundColor?.value?.value) {
-                    tooltipOptions.backgroundColor = tooltipsSettings.backgroundColor.value.value;
-                }
-                if (tooltipsSettings.borderColor?.value?.value) {
-                    tooltipOptions.borderColor = tooltipsSettings.borderColor.value.value;
-                }
-
-                // Show tooltip via Power BI service with the field data and formatting
-                (this.tooltipService as any).show?.(tooltipOptions);
-            } else if (element instanceof SVGElement) {
-                // Fallback: use title attribute if no tooltip field
-                let tooltipText = "";
+            // Get tooltip text
+            let tooltipText = "";
+            if (d.tooltipData !== undefined) {
+                tooltipText = String(d.tooltipData);
+            } else {
+                // Fallback to default format
                 if (type === 'inherent') {
                     tooltipText = `${d.id} (I: ${d.lInh}×${d.cInh})`;
                 } else {
@@ -1432,20 +1415,43 @@ export class Visual implements IVisual {
                     const cRes = d.cRes ?? d.cInh;
                     tooltipText = `${d.id} (R: ${lRes}×${cRes})`;
                 }
-                element.setAttribute("title", tooltipText);
+            }
+
+            if (!tooltipText) return;
+
+            // Apply custom styling from settings
+            const textSize = tooltipsSettings.textSize?.value || 11;
+            const textColor = tooltipsSettings.textColor?.value?.value || "#333333";
+            const backgroundColor = tooltipsSettings.backgroundColor?.value?.value || "#ffffff";
+            const borderColor = tooltipsSettings.borderColor?.value?.value || "#cccccc";
+
+            this.tooltipDiv.textContent = tooltipText;
+            this.tooltipDiv.style.fontSize = `${textSize}px`;
+            this.tooltipDiv.style.color = textColor;
+            this.tooltipDiv.style.backgroundColor = backgroundColor;
+            this.tooltipDiv.style.border = `1px solid ${borderColor}`;
+            this.tooltipDiv.style.display = "block";
+
+            // Position tooltip near the element
+            const rect = (element as SVGElement).getBoundingClientRect?.();
+            if (rect) {
+                const containerRect = (element.ownerDocument?.defaultView as any)?.frameElement?.getBoundingClientRect();
+                const offsetX = containerRect ? containerRect.left : 0;
+                const offsetY = containerRect ? containerRect.top : 0;
+                
+                this.tooltipDiv.style.left = `${rect.left - offsetX + rect.width / 2}px`;
+                this.tooltipDiv.style.top = `${rect.top - offsetY - 35}px`;
+                this.tooltipDiv.style.transform = "translateX(-50%)";
             }
         } catch (e) {
-            // Non-fatal if tooltip service unavailable
+            // Non-fatal if positioning fails
         }
     }
 
-    // Hide Power BI tooltip
+    // Hide custom tooltip
     private hideTooltip() {
         try {
-            (this.tooltipService as any).hide?.({
-                immediately: true,
-                isTouchEvent: false
-            });
+            this.tooltipDiv.style.display = "none";
         } catch (e) {
             // Non-fatal
         }
