@@ -81,8 +81,11 @@ export class Visual implements IVisual {
         this.tooltipDiv.style.padding = "8px 12px";
         this.tooltipDiv.style.borderRadius = "4px";
         this.tooltipDiv.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
-        this.tooltipDiv.style.whiteSpace = "nowrap";
+        this.tooltipDiv.style.whiteSpace = "normal";
+        this.tooltipDiv.style.wordWrap = "break-word";
         this.tooltipDiv.style.maxWidth = "300px";
+        this.tooltipDiv.style.minWidth = "50px";
+        this.tooltipDiv.style.lineHeight = "1.4";
         options.element.appendChild(this.tooltipDiv);
         
         // clear any prior selection visuals
@@ -1439,8 +1442,32 @@ export class Visual implements IVisual {
                 const offsetX = containerRect ? containerRect.left : 0;
                 const offsetY = containerRect ? containerRect.top : 0;
                 
-                this.tooltipDiv.style.left = `${rect.left - offsetX + rect.width / 2}px`;
-                this.tooltipDiv.style.top = `${rect.top - offsetY - 35}px`;
+                // Calculate position - show above marker by default
+                let left = rect.left - offsetX + rect.width / 2;
+                let top = rect.top - offsetY - 10; // 10px gap above marker
+                
+                // Get tooltip dimensions after setting content
+                const tooltipRect = this.tooltipDiv.getBoundingClientRect();
+                const tooltipHeight = tooltipRect.height;
+                const tooltipWidth = tooltipRect.width;
+                
+                // Adjust vertical position to show above marker
+                top = top - tooltipHeight;
+                
+                // Ensure tooltip stays within horizontal bounds
+                if (left - tooltipWidth / 2 < 5) {
+                    left = tooltipWidth / 2 + 5; // 5px margin from left edge
+                } else if (left + tooltipWidth / 2 > window.innerWidth - 5) {
+                    left = window.innerWidth - tooltipWidth / 2 - 5; // 5px margin from right edge
+                }
+                
+                // If tooltip would go above viewport, show below marker instead
+                if (top < 5) {
+                    top = rect.bottom - offsetY + 10; // Show below marker with 10px gap
+                }
+                
+                this.tooltipDiv.style.left = `${left}px`;
+                this.tooltipDiv.style.top = `${top}px`;
                 this.tooltipDiv.style.transform = "translateX(-50%)";
             }
         } catch (e) {
