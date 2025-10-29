@@ -303,8 +303,42 @@ class ArrowsCardSettings extends FormattingSettingsCard {
 class TooltipsCardSettings extends FormattingSettingsCard {
     show = new formattingSettings.ToggleSwitch({ name: "show", displayName: "Show tooltips", value: true });
 
+    textSize = new formattingSettings.NumUpDown({
+        name: "textSize",
+        displayName: "Text size",
+        value: 11,
+        options: {
+            minValue: { value: 8, type: powerbi.visuals.ValidatorType.Min },
+            maxValue: { value: 24, type: powerbi.visuals.ValidatorType.Max }
+        }
+    });
+
+    textColor = new formattingSettings.ColorPicker({
+        name: "textColor",
+        displayName: "Text color",
+        value: { value: "#333333" }
+    });
+
+    backgroundColor = new formattingSettings.ColorPicker({
+        name: "backgroundColor",
+        displayName: "Background color",
+        value: { value: "#ffffff" }
+    });
+
+    borderColor = new formattingSettings.ColorPicker({
+        name: "borderColor",
+        displayName: "Border color",
+        value: { value: "#cccccc" }
+    });
+
     name: string = "tooltips"; displayName: string = "Tooltips";
-    slices: Array<FormattingSettingsSlice> = [this.show];
+    slices: Array<FormattingSettingsSlice> = [
+        this.show,
+        this.textSize,
+        this.textColor,
+        this.backgroundColor,
+        this.borderColor
+    ];
 }
 
 class MatrixGridCardSettings extends FormattingSettingsCard {

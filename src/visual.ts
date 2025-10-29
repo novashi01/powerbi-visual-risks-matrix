@@ -1392,13 +1392,36 @@ export class Visual implements IVisual {
             if (this.tooltipService && d.tooltipData !== undefined) {
                 const rect = (element as SVGElement).getBoundingClientRect?.() || { left: 0, top: 0 };
                 
-                // Show tooltip via Power BI service with the field data
-                (this.tooltipService as any).show?.({
+                // Build tooltip data with formatting options
+                const tooltipDataItems = d.tooltipData ? [{
+                    displayName: "",
+                    value: String(d.tooltipData)
+                }] : [];
+
+                // Add formatting metadata (Power BI tooltip service will apply styling)
+                const tooltipOptions: any = {
                     coordinates: [rect.left, rect.top],
                     isTouchEvent: false,
-                    dataItems: d.tooltipData ? [{ displayName: "", value: String(d.tooltipData) }] : [],
+                    dataItems: tooltipDataItems,
                     identities: [d.selectionId] as any
-                });
+                };
+
+                // Apply formatting settings if provided
+                if (tooltipsSettings.textSize?.value) {
+                    tooltipOptions.fontSize = tooltipsSettings.textSize.value;
+                }
+                if (tooltipsSettings.textColor?.value?.value) {
+                    tooltipOptions.textColor = tooltipsSettings.textColor.value.value;
+                }
+                if (tooltipsSettings.backgroundColor?.value?.value) {
+                    tooltipOptions.backgroundColor = tooltipsSettings.backgroundColor.value.value;
+                }
+                if (tooltipsSettings.borderColor?.value?.value) {
+                    tooltipOptions.borderColor = tooltipsSettings.borderColor.value.value;
+                }
+
+                // Show tooltip via Power BI service with the field data and formatting
+                (this.tooltipService as any).show?.(tooltipOptions);
             } else if (element instanceof SVGElement) {
                 // Fallback: use title attribute if no tooltip field
                 let tooltipText = "";

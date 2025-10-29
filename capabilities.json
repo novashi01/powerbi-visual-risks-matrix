@@ -120,7 +120,11 @@
     "tooltips": {
       "displayName": "Tooltips",
       "properties": {
-        "show": { "displayName": "Show tooltips", "type": { "bool": true } }
+        "show": { "displayName": "Show tooltips", "type": { "bool": true } },
+        "textSize": { "displayName": "Text size", "type": { "formatting": { "fontSize": true } } },
+        "textColor": { "displayName": "Text color", "type": { "fill": { "solid": { "color": true } } } },
+        "backgroundColor": { "displayName": "Background color", "type": { "fill": { "solid": { "color": true } } } },
+        "borderColor": { "displayName": "Border color", "type": { "fill": { "solid": { "color": true } } } }
       }
     },
     "animation": {
