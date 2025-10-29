@@ -45,6 +45,8 @@ export class Visual implements IVisual {
     private selectionManager: ISelectionManager;
     private tooltipService: ITooltipService;
     private tooltipDiv: HTMLDivElement; // Custom tooltip element
+    private expandedCell: string | null = null; // Track expanded cell for centered drill-down (format: "L-C")
+    private currentData: RiskPoint[] = []; // Store current data for re-rendering
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
@@ -104,6 +106,9 @@ export class Visual implements IVisual {
 
     public update(options: VisualUpdateOptions) {
         try {
+            // Clear expanded cell state on data refresh
+            this.expandedCell = null;
+            
             const view = options.dataViews && options.dataViews[0];
             this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
             
@@ -376,6 +381,9 @@ export class Visual implements IVisual {
     }
 
     private renderData(vp: IViewport, data: RiskPoint[]) {
+        // Store current data for re-rendering on expand/collapse
+        this.currentData = data;
+        
         const sm = this.selectionManager;
         // Clear elements safely without innerHTML
         while (this.gArrows.firstChild) {
@@ -1152,20 +1160,273 @@ export class Visual implements IVisual {
         requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add(cls)));
     }
     
+    /**
+     * Group risks by cell for count aggregation in centered mode
+     * @param data Array of risk points
+     * @returns Map where key is "L-C" (e.g., "3-2") and value is array of risks in that cell
+     */
+    private groupRisksByCell(data: RiskPoint[]): Map<string, RiskPoint[]> {
+        const cellMap = new Map<string, RiskPoint[]>();
+        
+        for (const risk of data) {
+            // Use residual position as primary, fallback to inherent if residual not available
+            const L = risk.lRes ?? risk.lInh;
+            const C = risk.cRes ?? risk.cInh;
+            
+            if (L === undefined || C === undefined) continue;
+            
+            const cellKey = `${L}-${C}`;
+            const existing = cellMap.get(cellKey) || [];
+            existing.push(risk);
+            cellMap.set(cellKey, existing);
+        }
+        
+        return cellMap;
+    }
+    
+    /**
+     * Render a count marker showing the number of risks in a cell
+     * @param cellKey Cell identifier (e.g., "3-2")
+     * @param count Number of risks in the cell
+     * @param x X coordinate for marker center
+     * @param y Y coordinate for marker center
+     * @param color Marker fill color
+     * @param sm Selection manager
+     * @param onClick Click handler for expanding the cell
+     */
+    private renderCountMarker(
+        cellKey: string,
+        count: number,
+        x: number,
+        y: number,
+        color: string,
+        sm: ISelectionManager,
+        onClick: () => void
+    ): void {
+        const markerSize = (this.formattingSettings.markersCard.size.value ?? 6) * 1.5; // 1.5x larger
+        const shape = this.formattingSettings?.markersCard?.shape?.value?.value ?? "round";
+        const borderColor = this.formattingSettings.markersCard.borderColor.value?.value || "#111111";
+        const borderWidth = this.formattingSettings.markersCard.borderWidth.value ?? 1;
+        const borderTransparency = this.formattingSettings.markersCard.borderTransparency.value ?? 100;
+        const borderOpacity = borderTransparency / 100;
+        
+        // Create marker group
+        const markerGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markerGroup.setAttribute("class", "count-marker-group");
+        markerGroup.style.cursor = "pointer";
+        
+        // Create marker element based on shape
+        let element: SVGElement;
+        if (shape === "round") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            element.setAttribute("cx", String(x));
+            element.setAttribute("cy", String(y));
+            element.setAttribute("r", String(markerSize));
+        } else if (shape === "rectangle") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            element.setAttribute("x", String(x - markerSize));
+            element.setAttribute("y", String(y - markerSize / 2));
+            element.setAttribute("width", String(markerSize * 2));
+            element.setAttribute("height", String(markerSize));
+        } else if (shape === "roundedRectangle") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            element.setAttribute("x", String(x - markerSize));
+            element.setAttribute("y", String(y - markerSize / 2));
+            element.setAttribute("width", String(markerSize * 2));
+            element.setAttribute("height", String(markerSize));
+            element.setAttribute("rx", "5");
+            element.setAttribute("ry", "5");
+        } else {
+            // Fallback to circle
+            element = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            element.setAttribute("cx", String(x));
+            element.setAttribute("cy", String(y));
+            element.setAttribute("r", String(markerSize));
+        }
+        
+        // Apply styling
+        element.setAttribute("fill", color);
+        element.setAttribute("stroke", borderColor);
+        element.setAttribute("stroke-width", String(borderWidth));
+        element.setAttribute("stroke-opacity", String(borderOpacity));
+        element.setAttribute("fill-opacity", "1");
+        
+        markerGroup.appendChild(element);
+        
+        // Add count text centered inside marker
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", String(x));
+        text.setAttribute("y", String(y));
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "central");
+        text.setAttribute("font-size", String(Math.max(10, markerSize * 0.8)));
+        text.setAttribute("font-weight", "bold");
+        text.setAttribute("fill", "#FFFFFF"); // White text for contrast
+        text.setAttribute("pointer-events", "none");
+        
+        // Display "99+" if count exceeds 99
+        const displayCount = count > 99 ? "99+" : String(count);
+        text.textContent = displayCount;
+        
+        markerGroup.appendChild(text);
+        
+        // Add click handler
+        markerGroup.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            onClick();
+        });
+        
+        // Add hover effect
+        const hoverEffect = this.formattingSettings?.markersCard?.hoverEffect?.value ?? true;
+        if (hoverEffect) {
+            markerGroup.addEventListener("mouseover", () => {
+                let cx = x, cy = y;
+                if (element.tagName === 'rect') {
+                    const rx = Number(element.getAttribute('x')) || (x - markerSize);
+                    const ry = Number(element.getAttribute('y')) || (y - markerSize / 2);
+                    const rw = Number(element.getAttribute('width')) || (markerSize * 2);
+                    const rh = Number(element.getAttribute('height')) || markerSize;
+                    cx = rx + rw / 2;
+                    cy = ry + rh / 2;
+                }
+                markerGroup.setAttribute('transform', `translate(${cx},${cy}) scale(1.15) translate(${-cx},${-cy})`);
+            });
+            
+            markerGroup.addEventListener("mouseout", () => {
+                markerGroup.removeAttribute('transform');
+            });
+        }
+        
+        this.gPoints.appendChild(markerGroup);
+    }
+    
+    /**
+     * Render organized grid for a single expanded cell
+     * @param risks Array of risks in this cell
+     * @param L Likelihood value of the cell
+     * @param C Consequence value of the cell
+     * @param toXY Coordinate conversion function
+     * @param sm Selection manager
+     */
+    private renderOrganizedCellOnly(
+        risks: RiskPoint[],
+        L: number,
+        C: number,
+        toXY: (l: number, c: number) => {x: number, y: number},
+        sm: ISelectionManager
+    ): void {
+        // Get cell dimensions from current viewport
+        const matrixRows = this.formattingSettings?.matrixGridCard?.matrixRows?.value || 5;
+        const matrixColumns = this.formattingSettings?.matrixGridCard?.matrixColumns?.value || 5;
+        const m = { l: 40, r: 10, t: 10, b: 30 };
+        const vp = { 
+            width: Number(this.svg.getAttribute('width')), 
+            height: Number(this.svg.getAttribute('height')) 
+        };
+        const w = vp.width - m.l - m.r;
+        const h = vp.height - m.t - m.b;
+        const cw = w / matrixColumns;
+        const ch = h / matrixRows;
+        
+        const cellPadding = this.formattingSettings?.riskMarkersLayoutCard?.cellPadding?.value ?? 5;
+        const markerRows = this.formattingSettings?.riskMarkersLayoutCard?.markerRows?.value ?? 3;
+        const markerCols = this.formattingSettings?.riskMarkersLayoutCard?.markerColumns?.value ?? 3;
+        
+        const cellCenter = toXY(L, C);
+        const cellBounds = {
+            x: cellCenter.x - cw/2,
+            y: cellCenter.y - ch/2,
+            width: cw,
+            height: ch
+        };
+        
+        // Create cell group with background click handler
+        const cellGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        cellGroup.setAttribute('class', 'expanded-cell-group');
+        
+        // Add clickable background rect for collapse
+        const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        bgRect.setAttribute("x", String(cellBounds.x));
+        bgRect.setAttribute("y", String(cellBounds.y));
+        bgRect.setAttribute("width", String(cellBounds.width));
+        bgRect.setAttribute("height", String(cellBounds.height));
+        bgRect.setAttribute("fill", "transparent");
+        bgRect.setAttribute("pointer-events", "all");
+        bgRect.style.cursor = "pointer";
+        
+        // Collapse on background click
+        bgRect.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            this.expandedCell = null;
+            // Re-render to show count view
+            this.renderData(vp, this.currentData || []);
+        });
+        
+        cellGroup.appendChild(bgRect);
+        
+        // Organize markers in grid
+        const markers = risks.map(risk => ({
+            data: risk,
+            color: this.getSeverityColor(((risk.lRes ?? risk.lInh) || 1) * ((risk.cRes ?? risk.cInh) || 1)),
+            type: 'residual'
+        }));
+        
+        const organizedMarkers = this.organizeMarkersInCell(markers, cellBounds, cellPadding, markerRows, markerCols);
+        
+        // Render each marker
+        organizedMarkers.forEach(marker => {
+            this.renderSingleMarkerToGroup(cellGroup, marker, sm, 'residual');
+        });
+        
+        this.gPoints.appendChild(cellGroup);
+    }
+    
     private renderSingleMarker(marker: any, sm: ISelectionManager, type: 'inherent' | 'residual') {
         // Fallback to gPoints group if no specific group is provided
         this.renderSingleMarkerToGroup(this.gPoints, marker, sm, type);
     }
     
     private renderCenteredLayout(data: RiskPoint[], toXY: (l: number, c: number) => {x: number, y: number}, sm: ISelectionManager) {
-        for (const d of data) {
-            const color = this.getSeverityColor(((d.lRes ?? d.lInh) || 1) * ((d.cRes ?? d.cInh) || 1));
-            const start = (d.lInh && d.cInh) ? toXY(d.lInh, d.cInh) : undefined;
-            const end = (d.lRes && d.cRes) ? toXY(d.lRes, d.cRes) : start;
-            if (!end) continue;
+        // Group risks by cell for count aggregation
+        const cellMap = this.groupRisksByCell(data);
+        
+        // Render count markers or expanded cells
+        cellMap.forEach((risks, cellKey) => {
+            const [L, C] = cellKey.split('-').map(Number);
+            const position = toXY(L, C);
             
-            this.renderMarkerWithArrow(d, start, end, color, { dx: 0, dy: 0 }, sm);
-        }
+            // Check if this cell is expanded
+            if (this.expandedCell === cellKey) {
+                // Render organized grid for this cell only
+                this.renderOrganizedCellOnly(risks, L, C, toXY, sm);
+            } else {
+                // Render count marker
+                const count = risks.length;
+                // Use highest severity color in the cell
+                const maxScore = Math.max(...risks.map(r => 
+                    ((r.lRes ?? r.lInh) || 1) * ((r.cRes ?? r.cInh) || 1)
+                ));
+                const color = this.getSeverityColor(maxScore);
+                
+                this.renderCountMarker(
+                    cellKey,
+                    count,
+                    position.x,
+                    position.y,
+                    color,
+                    sm,
+                    () => {
+                        // Expand this cell on click
+                        this.expandedCell = cellKey;
+                        // Re-render to show expanded view
+                        this.renderData(
+                            { width: Number(this.svg.getAttribute('width')), height: Number(this.svg.getAttribute('height')) },
+                            data
+                        );
+                    }
+                );
+            }
+        });
     }
     
     private renderJitteredLayout(data: RiskPoint[], toXY: (l: number, c: number) => {x: number, y: number}, cw: number, ch: number, sm: ISelectionManager) {
