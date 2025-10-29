@@ -14,6 +14,7 @@ import IViewport = powerbi.IViewport;
 import ISelectionManager = powerbi.extensibility.ISelectionManager;
 import ISelectionId = powerbi.visuals.ISelectionId;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
+import ITooltipService = powerbi.extensibility.ITooltipService;
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import { VisualFormattingSettingsModel } from "./settings";
 import { applyScrollFadeMask } from "./scrollFade";
@@ -41,10 +42,12 @@ export class Visual implements IVisual {
 
     private host: IVisualHost;
     private selectionManager: ISelectionManager;
+    private tooltipService: ITooltipService;
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
         this.selectionManager = this.host.createSelectionManager();
+        this.tooltipService = this.host.tooltipService;
         this.formattingSettingsService = new FormattingSettingsService();
         
         this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -899,14 +902,18 @@ export class Visual implements IVisual {
         element.setAttribute("stroke-opacity", String(borderOpacity));
         if (type === 'inherent') {
             element.setAttribute("fill-opacity", String(inherentOpacity));
-            if (showTooltips) markerGroup.setAttribute("title", `${d.id} (I: ${d.lInh}×${d.cInh})`);
         } else {
             element.setAttribute("fill-opacity", String(1));
-            if (showTooltips) {
-                const lRes = d.lRes ?? d.lInh;
-                const cRes = d.cRes ?? d.cInh;
-                markerGroup.setAttribute("title", `${d.id} (R: ${lRes}×${cRes})`);
-            }
+        }
+
+        // Wire up tooltip display using new Power BI-style helper
+        if (showTooltips) {
+            markerGroup.addEventListener('mouseover', () => {
+                this.showTooltip(markerGroup, d, type);
+            });
+            markerGroup.addEventListener('mouseout', () => {
+                this.hideTooltip();
+            });
         }
 
         // Ensure markerGroup is visible by default
@@ -1370,5 +1377,64 @@ export class Visual implements IVisual {
                 y: end.y - unitY * distance
             }
         };
+    }
+
+    // Show Power BI-style tooltip with type selection, custom text, and formatting
+    private showTooltip(element: Element, d: RiskPoint, type: 'inherent' | 'residual') {
+        try {
+            const tooltipsSettings = this.formattingSettings?.tooltipsCard;
+            if (!tooltipsSettings || !tooltipsSettings.show.value) return;
+
+            const tooltipType = tooltipsSettings.tooltipType?.value?.value || "default";
+            const customTextFormat = tooltipsSettings.customText?.value || "";
+            const bgColor = tooltipsSettings.backgroundColor?.value?.value || "#ffffff";
+            const textColor = tooltipsSettings.textColor?.value?.value || "#000000";
+
+            // Build tooltip text
+            let tooltipText = "";
+            if (customTextFormat) {
+                // Support simple template variables: {id}, {likelihood}, {consequence}, {type}
+                tooltipText = customTextFormat
+                    .replace("{id}", d.id || "")
+                    .replace("{type}", type === 'inherent' ? "Inherent" : "Residual")
+                    .replace("{likelihood}", type === 'inherent' ? String(d.lInh || "") : String(d.lRes || ""))
+                    .replace("{consequence}", type === 'inherent' ? String(d.cInh || "") : String(d.cRes || ""));
+            } else {
+                // Default format
+                if (type === 'inherent') {
+                    tooltipText = `${d.id} (I: ${d.lInh}×${d.cInh})`;
+                } else {
+                    const lRes = d.lRes ?? d.lInh;
+                    const cRes = d.cRes ?? d.cInh;
+                    tooltipText = `${d.id} (R: ${lRes}×${cRes})`;
+                }
+            }
+
+            // For now, use HTML title attribute for default tooltips.
+            // Report page tooltips would require data binding integration which is complex.
+            element.setAttribute("title", tooltipText);
+            
+            // Store custom styling info for potential future CSS-based styling
+            if (element instanceof SVGElement) {
+                (element as any).__tooltipBg = bgColor;
+                (element as any).__tooltipColor = textColor;
+            }
+        } catch (e) {
+            // Non-fatal if tooltip unavailable
+        }
+    }
+
+    // Hide Power BI tooltip
+    private hideTooltip() {
+        try {
+            if (this.tooltipService) {
+                (this.tooltipService as any).hide?.({
+                    immediately: true,
+                    isTouchEvent: false
+                });
+            }
+        } catch (e) {
+            // Non-fatal
+        }
     }
 }

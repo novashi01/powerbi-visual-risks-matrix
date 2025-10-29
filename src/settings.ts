@@ -302,8 +302,44 @@ class ArrowsCardSettings extends FormattingSettingsCard {
 
 class TooltipsCardSettings extends FormattingSettingsCard {
     show = new formattingSettings.ToggleSwitch({ name: "show", displayName: "Show tooltips", value: true });
+
+    tooltipType = new formattingSettings.ItemDropdown({
+        name: "tooltipType",
+        displayName: "Tooltip type",
+        items: [
+            { displayName: "Default (Data-based)", value: "default" },
+            { displayName: "Report page", value: "report-page" }
+        ],
+        value: { displayName: "Default (Data-based)", value: "default" }
+    });
+
+    customText = new formattingSettings.TextInput({
+        name: "customText",
+        displayName: "Custom tooltip text",
+        value: "",
+        placeholder: "Enter custom tooltip format (e.g., Risk: {id}, L: {likelihood}, C: {consequence})"
+    });
+
+    backgroundColor = new formattingSettings.ColorPicker({
+        name: "backgroundColor",
+        displayName: "Background color",
+        value: { value: "#ffffff" }
+    });
+
+    textColor = new formattingSettings.ColorPicker({
+        name: "textColor",
+        displayName: "Text color",
+        value: { value: "#000000" }
+    });
+
     name: string = "tooltips"; displayName: string = "Tooltips";
-    slices: Array<FormattingSettingsSlice> = [this.show];
+    slices: Array<FormattingSettingsSlice> = [
+        this.show,
+        this.tooltipType,
+        this.customText,
+        this.backgroundColor,
+        this.textColor
+    ];
 }
 
 class MatrixGridCardSettings extends FormattingSettingsCard {
