@@ -28,6 +28,7 @@ interface RiskPoint {
     cRes?: number;
     category?: string;
     selectionId?: ISelectionId;
+    tooltipData?: any; // Store tooltip data from Power BI
 }
 
 export class Visual implements IVisual {
@@ -336,6 +337,7 @@ export class Visual implements IVisual {
         const LInh = colByRole("likelihoodInh"), CInh = colByRole("consequenceInh");
         const LRes = colByRole("likelihoodRes"), CRes = colByRole("consequenceRes");
         const Cat = (cat.categories || []).find(c => c.source.roles && (c.source.roles as any)["category"]);
+        const Tooltips = colByRole("tooltips"); // Capture tooltip data column
         const n = Math.min(riskCats.values.length, maxN);
         for (let i = 0; i < n; i++) {
             const selectionId = this.host.createSelectionIdBuilder().withCategory(riskCats, i).createSelectionId();
@@ -343,6 +345,7 @@ export class Visual implements IVisual {
             rp.lInh = this.clamp(LInh?.values?.[i]); rp.cInh = this.clamp(CInh?.values?.[i]);
             rp.lRes = this.clamp(LRes?.values?.[i]); rp.cRes = this.clamp(CRes?.values?.[i]);
             rp.category = Cat ? String(Cat.values[i]) : undefined;
+            rp.tooltipData = Tooltips?.values?.[i]; // Store tooltip value
             if (rp.lInh && rp.cInh || rp.lRes && rp.cRes) out.push(rp);
         }
         return out;
@@ -1379,28 +1382,26 @@ export class Visual implements IVisual {
         };
     }
 
-    // Show Power BI-style tooltip with type selection, custom text, and formatting
+    // Show Power BI tooltip with field data on hover
     private showTooltip(element: Element, d: RiskPoint, type: 'inherent' | 'residual') {
         try {
             const tooltipsSettings = this.formattingSettings?.tooltipsCard;
             if (!tooltipsSettings || !tooltipsSettings.show.value) return;
 
-            const tooltipType = tooltipsSettings.tooltipType?.value?.value || "default";
-            const customTextFormat = tooltipsSettings.customText?.value || "";
-            const bgColor = tooltipsSettings.backgroundColor?.value?.value || "#ffffff";
-            const textColor = tooltipsSettings.textColor?.value?.value || "#000000";
-
-            // Build tooltip text
-            let tooltipText = "";
-            if (customTextFormat) {
-                // Support simple template variables: {id}, {likelihood}, {consequence}, {type}
-                tooltipText = customTextFormat
-                    .replace("{id}", d.id || "")
-                    .replace("{type}", type === 'inherent' ? "Inherent" : "Residual")
-                    .replace("{likelihood}", type === 'inherent' ? String(d.lInh || "") : String(d.lRes || ""))
-                    .replace("{consequence}", type === 'inherent' ? String(d.cInh || "") : String(d.cRes || ""));
-            } else {
-                // Default format
+            // Use Power BI's tooltip service to show data-driven tooltips
+            if (this.tooltipService && d.tooltipData !== undefined) {
+                const rect = (element as SVGElement).getBoundingClientRect?.() || { left: 0, top: 0 };
+                
+                // Show tooltip via Power BI service with the field data
+                (this.tooltipService as any).show?.({
+                    coordinates: [rect.left, rect.top],
+                    isTouchEvent: false,
+                    dataItems: d.tooltipData ? [{ displayName: "", value: String(d.tooltipData) }] : [],
+                    identities: [d.selectionId] as any
+                });
+            } else if (element instanceof SVGElement) {
+                // Fallback: use title attribute if no tooltip field
+                let tooltipText = "";
                 if (type === 'inherent') {
                     tooltipText = `${d.id} (I: ${d.lInh}×${d.cInh})`;
                 } else {
@@ -1408,31 +1409,20 @@ export class Visual implements IVisual {
                     const cRes = d.cRes ?? d.cInh;
                     tooltipText = `${d.id} (R: ${lRes}×${cRes})`;
                 }
-            }
-
-            // For now, use HTML title attribute for default tooltips.
-            // Report page tooltips would require data binding integration which is complex.
-            element.setAttribute("title", tooltipText);
-            
-            // Store custom styling info for potential future CSS-based styling
-            if (element instanceof SVGElement) {
-                (element as any).__tooltipBg = bgColor;
-                (element as any).__tooltipColor = textColor;
+                element.setAttribute("title", tooltipText);
             }
         } catch (e) {
-            // Non-fatal if tooltip unavailable
+            // Non-fatal if tooltip service unavailable
         }
     }
 
     // Hide Power BI tooltip
     private hideTooltip() {
         try {
-            if (this.tooltipService) {
-                (this.tooltipService as any).hide?.({
-                    immediately: true,
-                    isTouchEvent: false
-                });
-            }
+            (this.tooltipService as any).hide?.({
+                immediately: true,
+                isTouchEvent: false
+            });
         } catch (e) {
             // Non-fatal
         }
