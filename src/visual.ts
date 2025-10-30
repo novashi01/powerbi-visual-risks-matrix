@@ -45,6 +45,8 @@ export class Visual implements IVisual {
     private selectionManager: ISelectionManager;
     private tooltipService: ITooltipService;
     private tooltipDiv: HTMLDivElement; // Custom tooltip element
+    private expandedCell: string | null = null; // Track expanded cell for centered drill-down (format: "L-C")
+    private currentData: RiskPoint[] = []; // Store current data for re-rendering
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
@@ -104,6 +106,9 @@ export class Visual implements IVisual {
 
     public update(options: VisualUpdateOptions) {
         try {
+            // Clear expanded cell state on data refresh
+            this.expandedCell = null;
+            
             const view = options.dataViews && options.dataViews[0];
             this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, view);
             
@@ -376,6 +381,9 @@ export class Visual implements IVisual {
     }
 
     private renderData(vp: IViewport, data: RiskPoint[]) {
+        // Store current data for re-rendering on expand/collapse
+        this.currentData = data;
+        
         const sm = this.selectionManager;
         // Clear elements safely without innerHTML
         while (this.gArrows.firstChild) {
@@ -1152,19 +1160,785 @@ export class Visual implements IVisual {
         requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add(cls)));
     }
     
+    /**
+     * Group risks by cell for count aggregation in centered mode
+     * @param data Array of risk points
+     * @returns Map where key is "L-C" (e.g., "3-2") and value is array of risks in that cell
+     */
+    private groupRisksByCell(data: RiskPoint[]): Map<string, RiskPoint[]> {
+        const cellMap = new Map<string, RiskPoint[]>();
+        
+        for (const risk of data) {
+            // Use residual position as primary, fallback to inherent if residual not available
+            const L = risk.lRes ?? risk.lInh;
+            const C = risk.cRes ?? risk.cInh;
+            
+            if (L === undefined || C === undefined) continue;
+            
+            const cellKey = `${L}-${C}`;
+            const existing = cellMap.get(cellKey) || [];
+            existing.push(risk);
+            cellMap.set(cellKey, existing);
+        }
+        
+        return cellMap;
+    }
+    
+    /**
+     * Render a count marker showing the number of risks in a cell
+     * @param cellKey Cell identifier (e.g., "3-2")
+     * @param count Number of risks in the cell
+     * @param x X coordinate for marker center
+     * @param y Y coordinate for marker center
+     * @param color Marker fill color
+     * @param sm Selection manager
+     * @param onClick Click handler for expanding the cell
+     */
+    private renderCountMarker(
+        cellKey: string,
+        count: number,
+        x: number,
+        y: number,
+        color: string,
+        sm: ISelectionManager,
+        onClick: () => void
+    ): void {
+        const markerSize = (this.formattingSettings.markersCard.size.value ?? 6) * 1.5; // 1.5x larger
+        const shape = this.formattingSettings?.markersCard?.shape?.value?.value ?? "round";
+        const borderColor = this.formattingSettings.markersCard.borderColor.value?.value || "#111111";
+        const borderWidth = this.formattingSettings.markersCard.borderWidth.value ?? 1;
+        const borderTransparency = this.formattingSettings.markersCard.borderTransparency.value ?? 100;
+        const borderOpacity = borderTransparency / 100;
+        
+        // Create marker group
+        const markerGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markerGroup.setAttribute("class", "count-marker-group");
+        markerGroup.style.cursor = "pointer";
+        
+        // Create marker element based on shape
+        let element: SVGElement;
+        if (shape === "round") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            element.setAttribute("cx", String(x));
+            element.setAttribute("cy", String(y));
+            element.setAttribute("r", String(markerSize));
+        } else if (shape === "rectangle") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            element.setAttribute("x", String(x - markerSize));
+            element.setAttribute("y", String(y - markerSize / 2));
+            element.setAttribute("width", String(markerSize * 2));
+            element.setAttribute("height", String(markerSize));
+        } else if (shape === "roundedRectangle") {
+            element = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            element.setAttribute("x", String(x - markerSize));
+            element.setAttribute("y", String(y - markerSize / 2));
+            element.setAttribute("width", String(markerSize * 2));
+            element.setAttribute("height", String(markerSize));
+            element.setAttribute("rx", "5");
+            element.setAttribute("ry", "5");
+        } else {
+            // Fallback to circle
+            element = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            element.setAttribute("cx", String(x));
+            element.setAttribute("cy", String(y));
+            element.setAttribute("r", String(markerSize));
+        }
+        
+        // Apply styling
+        element.setAttribute("fill", color);
+        element.setAttribute("stroke", borderColor);
+        element.setAttribute("stroke-width", String(borderWidth));
+        element.setAttribute("stroke-opacity", String(borderOpacity));
+        element.setAttribute("fill-opacity", "1");
+        
+        markerGroup.appendChild(element);
+        
+        // Add count text centered inside marker
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", String(x));
+        text.setAttribute("y", String(y));
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "middle");
+        text.setAttribute("font-size", String(Math.max(10, markerSize * 0.8)));
+        text.setAttribute("font-weight", "bold");
+        text.setAttribute("fill", "#FFFFFF"); // White text for contrast
+        text.setAttribute("pointer-events", "none");
+        
+        // Display "99+" if count exceeds 99
+        const displayCount = count > 99 ? "99+" : String(count);
+        text.textContent = displayCount;
+        
+        markerGroup.appendChild(text);
+        
+        // Add click handler
+        markerGroup.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            onClick();
+        });
+        
+        // Add hover effect
+        const hoverEffect = this.formattingSettings?.markersCard?.hoverEffect?.value ?? true;
+        if (hoverEffect) {
+            markerGroup.addEventListener("mouseover", () => {
+                let cx = x, cy = y;
+                if (element.tagName === 'rect') {
+                    const rx = Number(element.getAttribute('x')) || (x - markerSize);
+                    const ry = Number(element.getAttribute('y')) || (y - markerSize / 2);
+                    const rw = Number(element.getAttribute('width')) || (markerSize * 2);
+                    const rh = Number(element.getAttribute('height')) || markerSize;
+                    cx = rx + rw / 2;
+                    cy = ry + rh / 2;
+                }
+                markerGroup.setAttribute('transform', `translate(${cx},${cy}) scale(1.15) translate(${-cx},${-cy})`);
+            });
+            
+            markerGroup.addEventListener("mouseout", () => {
+                markerGroup.removeAttribute('transform');
+            });
+        }
+        
+        this.gPoints.appendChild(markerGroup);
+    }
+    
+    /**
+     * Render a count marker with animation control
+     * Similar to renderCountMarker but with animation timing parameters
+     */
+    private renderCountMarkerWithAnimation(
+        cellKey: string,
+        count: number,
+        x: number,
+        y: number,
+        color: string,
+        sm: ISelectionManager,
+        onClick: () => void,
+        animationEnabled: boolean,
+        animationDuration: number,
+        showDelay: number,
+        hideDelay: number,
+        willFadeOut: boolean
+    ): void {
+        const markerSize = (this.formattingSettings.markersCard.size.value ?? 6) * 1.5; // 1.5x larger
+        const shape = this.formattingSettings?.markersCard?.shape?.value?.value ?? "round";
+        const borderColor = this.formattingSettings.markersCard.borderColor.value?.value || "#111111";
+        const borderWidth = this.formattingSettings.markersCard.borderWidth.value ?? 1;
+        const borderTransparency = this.formattingSettings.markersCard.borderTransparency.value ?? 100;
+        const borderOpacity = borderTransparency / 100;
+        
+        const markerGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markerGroup.setAttribute("class", "count-marker");
+        markerGroup.style.cursor = willFadeOut ? "default" : "pointer";
+        
+        let element: SVGElement;
+        
+        // Create marker shape
+        if (shape === "round") {
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", String(x));
+            circle.setAttribute("cy", String(y));
+            circle.setAttribute("r", String(markerSize));
+            circle.setAttribute("fill", color);
+            circle.setAttribute("stroke", borderColor);
+            circle.setAttribute("stroke-width", String(borderWidth));
+            circle.setAttribute("stroke-opacity", String(borderOpacity));
+            element = circle;
+        } else if (shape === "rectangle") {
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", String(x - markerSize));
+            rect.setAttribute("y", String(y - markerSize / 2));
+            rect.setAttribute("width", String(markerSize * 2));
+            rect.setAttribute("height", String(markerSize));
+            rect.setAttribute("fill", color);
+            rect.setAttribute("stroke", borderColor);
+            rect.setAttribute("stroke-width", String(borderWidth));
+            rect.setAttribute("stroke-opacity", String(borderOpacity));
+            element = rect;
+        } else if (shape === "roundedRectangle") {
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", String(x - markerSize));
+            rect.setAttribute("y", String(y - markerSize / 2));
+            rect.setAttribute("width", String(markerSize * 2));
+            rect.setAttribute("height", String(markerSize));
+            rect.setAttribute("rx", "5");
+            rect.setAttribute("ry", "5");
+            rect.setAttribute("fill", color);
+            rect.setAttribute("stroke", borderColor);
+            rect.setAttribute("stroke-width", String(borderWidth));
+            rect.setAttribute("stroke-opacity", String(borderOpacity));
+            element = rect;
+        } else {
+            // Fallback to circle
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", String(x));
+            circle.setAttribute("cy", String(y));
+            circle.setAttribute("r", String(markerSize));
+            circle.setAttribute("fill", color);
+            circle.setAttribute("stroke", borderColor);
+            circle.setAttribute("stroke-width", String(borderWidth));
+            circle.setAttribute("stroke-opacity", String(borderOpacity));
+            element = circle;
+        }
+        
+        markerGroup.appendChild(element);
+        
+        // Add count text
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", String(x));
+        text.setAttribute("y", String(y));
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "middle");
+        text.setAttribute("fill", "#FFFFFF");
+        text.setAttribute("font-size", String(markerSize * 0.8));
+        text.setAttribute("font-weight", "bold");
+        text.setAttribute("pointer-events", "none");
+        text.textContent = count > 99 ? "99+" : String(count);
+        
+        markerGroup.appendChild(text);
+        
+        // Add click handler (only for persistent residual markers)
+        if (!willFadeOut && onClick) {
+            markerGroup.addEventListener("click", (evt) => {
+                evt.stopPropagation();
+                onClick();
+            });
+        }
+        
+        // Apply animation
+        if (animationEnabled) {
+            markerGroup.setAttribute('opacity', '0');
+            if (willFadeOut) {
+                markerGroup.setAttribute('display', 'none');
+                (markerGroup as any).style.pointerEvents = 'none';
+            }
+            this.gPoints.appendChild(markerGroup);
+            
+            // Show marker
+            setTimeout(() => {
+                if (willFadeOut) {
+                    markerGroup.removeAttribute('display');
+                }
+                try { markerGroup.style.transition = `opacity ${animationDuration}ms ease-in`; } catch (e) {}
+                markerGroup.setAttribute('opacity', '1');
+            }, showDelay);
+            
+            // Hide marker (if it should fade out)
+            if (willFadeOut && hideDelay > 0) {
+                setTimeout(() => {
+                    try { markerGroup.style.transition = `opacity ${animationDuration}ms ease-out`; } catch (e) {}
+                    markerGroup.setAttribute('opacity', '0');
+                    setTimeout(() => {
+                        try { markerGroup.setAttribute('display', 'none'); } catch (e) {}
+                        try { (markerGroup as any).style.pointerEvents = 'none'; } catch (e) {}
+                    }, animationDuration);
+                }, hideDelay);
+            } else if (!willFadeOut) {
+                // Enable pointer events for residual markers
+                setTimeout(() => {
+                    try { (markerGroup as any).style.pointerEvents = 'auto'; } catch (e) {}
+                }, showDelay);
+            }
+        } else {
+            markerGroup.setAttribute('opacity', '1');
+            this.gPoints.appendChild(markerGroup);
+        }
+    }
+    
+    /**
+     * Render organized grid for a single expanded cell
+     * @param risks Array of risks in this cell
+     * @param L Likelihood value of the cell
+     * @param C Consequence value of the cell
+     * @param toXY Coordinate conversion function
+     * @param sm Selection manager
+     */
+    private renderOrganizedCellOnly(
+        risks: RiskPoint[],
+        L: number,
+        C: number,
+        toXY: (l: number, c: number) => {x: number, y: number},
+        sm: ISelectionManager
+    ): void {
+        // Get cell dimensions from current viewport
+        const matrixRows = this.formattingSettings?.matrixGridCard?.matrixRows?.value || 5;
+        const matrixColumns = this.formattingSettings?.matrixGridCard?.matrixColumns?.value || 5;
+        const m = { l: 40, r: 10, t: 10, b: 30 };
+        const vp = { 
+            width: Number(this.svg.getAttribute('width')), 
+            height: Number(this.svg.getAttribute('height')) 
+        };
+        const w = vp.width - m.l - m.r;
+        const h = vp.height - m.t - m.b;
+        const cw = w / matrixColumns;
+        const ch = h / matrixRows;
+        
+        const cellPadding = this.formattingSettings?.riskMarkersLayoutCard?.cellPadding?.value ?? 5;
+        const markerRows = this.formattingSettings?.riskMarkersLayoutCard?.markerRows?.value ?? 3;
+        const markerCols = this.formattingSettings?.riskMarkersLayoutCard?.markerColumns?.value ?? 3;
+        const showInherentInOrganized = this.formattingSettings?.riskMarkersLayoutCard?.showInherentInOrganized?.value ?? false;
+        const organizedArrows = this.formattingSettings?.riskMarkersLayoutCard?.organizedArrows?.value ?? true;
+        const animationEnabled = this.formattingSettings?.animationCard?.enabled?.value ?? true;
+        const animationDuration = this.formattingSettings?.animationCard?.durationMs?.value || 800;
+        
+        const cellCenter = toXY(L, C);
+        const cellBounds = {
+            x: cellCenter.x - cw/2,
+            y: cellCenter.y - ch/2,
+            width: cw,
+            height: ch
+        };
+        
+        // Create cell group with background click handler
+        const cellGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        cellGroup.setAttribute('class', 'expanded-cell-group');
+        
+        // Add clickable background rect for collapse
+        const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        bgRect.setAttribute("x", String(cellBounds.x));
+        bgRect.setAttribute("y", String(cellBounds.y));
+        bgRect.setAttribute("width", String(cellBounds.width));
+        bgRect.setAttribute("height", String(cellBounds.height));
+        bgRect.setAttribute("fill", "transparent");
+        bgRect.setAttribute("pointer-events", "all");
+        bgRect.style.cursor = "pointer";
+        
+        // Collapse on background click
+        const collapseHandler = (evt: Event) => {
+            evt.stopPropagation();
+            this.expandedCell = null;
+            // Re-render to show count view
+            this.renderData(vp, this.currentData || []);
+        };
+        bgRect.addEventListener("click", collapseHandler);
+        
+        cellGroup.appendChild(bgRect);
+        
+        // Create container for markers with scrolling support
+        const markerContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        markerContainer.setAttribute('class', 'marker-container');
+        
+        // Calculate max visible markers and check if scrolling needed
+        const maxVisibleMarkers = markerRows * markerCols;
+        const needsScrolling = risks.length > maxVisibleMarkers;
+        
+        // Organize markers in grid (residual positions)
+        const residualMarkers = risks.map(risk => ({
+            data: risk,
+            color: this.getSeverityColor(((risk.lRes ?? risk.lInh) || 1) * ((risk.cRes ?? risk.cInh) || 1)),
+            type: 'residual'
+        }));
+        
+        const organizedResidualMarkers = this.organizeMarkersInCell(residualMarkers, cellBounds, cellPadding, markerRows, markerCols);
+        
+        // Track positions for arrow rendering
+        const organizedPositions: {[riskId: string]: {inherent?: {x: number, y: number}, residual?: {x: number, y: number}}} = {};
+        
+        // Store residual positions
+        organizedResidualMarkers.forEach(marker => {
+            const riskId = marker.data.id;
+            if (!organizedPositions[riskId]) {
+                organizedPositions[riskId] = {};
+            }
+            organizedPositions[riskId].residual = { x: marker.organizedX, y: marker.organizedY };
+        });
+        
+        // Render inherent markers if enabled (for arrow start points)
+        if (showInherentInOrganized) {
+            const inherentMarkers = risks
+                .filter(risk => risk.lInh !== undefined && risk.cInh !== undefined)
+                .map(risk => ({
+                    data: risk,
+                    color: this.getSeverityColor(((risk.lInh || 1) * (risk.cInh || 1))),
+                    type: 'inherent'
+                }));
+            
+            if (inherentMarkers.length > 0) {
+                const organizedInherentMarkers = this.organizeMarkersInCell(inherentMarkers, cellBounds, cellPadding, markerRows, markerCols);
+                
+                organizedInherentMarkers.forEach((marker, index) => {
+                    const riskId = marker.data.id;
+                    if (!organizedPositions[riskId]) {
+                        organizedPositions[riskId] = {};
+                    }
+                    organizedPositions[riskId].inherent = { x: marker.organizedX, y: marker.organizedY };
+                    
+                    // Render inherent marker with collapse on click and animation
+                    const inherentElement = this.createMarkerElement(marker, sm, 'inherent');
+                    inherentElement.addEventListener("click", collapseHandler);
+                    
+                    // Fast expansion animation for inherent markers too
+                    if (animationEnabled) {
+                        const centerX = cellCenter.x;
+                        const centerY = cellCenter.y;
+                        const targetX = marker.organizedX;
+                        const targetY = marker.organizedY;
+                        const dx = targetX - centerX;
+                        const dy = targetY - centerY;
+                        
+                        inherentElement.setAttribute("transform", `translate(${-dx}, ${-dy})`);
+                        inherentElement.setAttribute("opacity", "0");
+                        
+                        const staggerDelay = index * 30;
+                        const animDuration = 300;
+                        
+                        setTimeout(() => {
+                            inherentElement.style.transition = `transform ${animDuration}ms ease-out, opacity ${animDuration}ms ease-in`;
+                            inherentElement.setAttribute("transform", "translate(0, 0)");
+                            inherentElement.setAttribute("opacity", "1");
+                        }, staggerDelay);
+                    }
+                    
+                    markerContainer.appendChild(inherentElement);
+                });
+            }
+        }
+        
+        // No arrows in expanded view - arrows only show before clicking in count marker view
+        
+        // Render residual markers with collapse on click and fast expansion animation
+        organizedResidualMarkers.forEach((marker, index) => {
+            const markerElement = this.createMarkerElement(marker, sm, 'residual');
+            markerElement.addEventListener("click", collapseHandler);
+            
+            // Fast expansion animation: start at center, animate to position
+            if (animationEnabled) {
+                const centerX = cellCenter.x;
+                const centerY = cellCenter.y;
+                const targetX = marker.organizedX;
+                const targetY = marker.organizedY;
+                const dx = targetX - centerX;
+                const dy = targetY - centerY;
+                
+                // Start at center (transform from target back to center)
+                markerElement.setAttribute("transform", `translate(${-dx}, ${-dy})`);
+                markerElement.setAttribute("opacity", "0");
+                
+                // Animate to final position with staggered delay for visual effect
+                const staggerDelay = index * 30; // 30ms between each marker
+                const animDuration = 300; // Fast 300ms animation
+                
+                setTimeout(() => {
+                    markerElement.style.transition = `transform ${animDuration}ms ease-out, opacity ${animDuration}ms ease-in`;
+                    markerElement.setAttribute("transform", "translate(0, 0)");
+                    markerElement.setAttribute("opacity", "1");
+                }, staggerDelay);
+            }
+            
+            markerContainer.appendChild(markerElement);
+        });
+        
+        // Add scrolling support if needed - using same approach as organized grid
+        if (needsScrolling) {
+            const enableScrolling = this.formattingSettings?.riskMarkersLayoutCard?.enableScrolling?.value ?? false;
+            const scrollFadeDepth = this.formattingSettings?.riskMarkersLayoutCard?.scrollFadeDepth?.value ?? 20;
+            
+            if (enableScrolling) {
+                // Create scroll container that will translate
+                const scrollContainer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                scrollContainer.setAttribute("class", "scroll-container");
+                
+                // Move markers from markerContainer to scrollContainer
+                while (markerContainer.firstChild) {
+                    scrollContainer.appendChild(markerContainer.firstChild);
+                }
+                markerContainer.appendChild(scrollContainer);
+                
+                // Calculate scroll bounds
+                const totalRows = Math.ceil(risks.length / markerCols);
+                const usableHeight = cellBounds.height - (cellPadding * 2);
+                const markerSpacingY = usableHeight / markerRows;
+                const markerSize = this.formattingSettings?.markersCard?.size?.value ?? 6;
+                const contentHeight = (totalRows * markerSpacingY) + markerSize;
+                const maxScroll = Math.min(0, cellBounds.height - contentHeight);
+                
+                // Add wheel event listener for scrolling
+                let offsetY = 0;
+                const handleWheel = (e: WheelEvent) => {
+                    e.preventDefault();
+                    offsetY = Math.max(maxScroll, Math.min(0, offsetY - e.deltaY * 0.5));
+                    scrollContainer.setAttribute('transform', `translate(0, ${offsetY})`);
+                };
+                cellGroup.addEventListener('wheel', handleWheel);
+                
+                // Apply fade mask to cellGroup (static) so gradient stays fixed while content scrolls
+                const defs = this.svg.querySelector('defs') || document.createElementNS("http://www.w3.org/2000/svg", "defs");
+                if (!this.svg.querySelector('defs')) {
+                    this.svg.insertBefore(defs, this.svg.firstChild);
+                }
+                applyScrollFadeMask(defs, cellBounds, `scroll-fade-centered-${L}-${C}`, cellGroup, scrollFadeDepth);
+                cellGroup.setAttribute('data-scroll-mask', `url(#scroll-fade-centered-${L}-${C}-mask)`);
+            }
+        }
+        
+        cellGroup.appendChild(markerContainer);
+        this.gPoints.appendChild(cellGroup);
+    }
+    
+    // Helper method to create marker element (extracted for reuse)
+    private createMarkerElement(marker: any, sm: ISelectionManager, type: 'inherent' | 'residual'): SVGGElement {
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        this.renderSingleMarkerToGroup(group, marker, sm, type);
+        return group;
+    }
+    
     private renderSingleMarker(marker: any, sm: ISelectionManager, type: 'inherent' | 'residual') {
         // Fallback to gPoints group if no specific group is provided
         this.renderSingleMarkerToGroup(this.gPoints, marker, sm, type);
     }
     
     private renderCenteredLayout(data: RiskPoint[], toXY: (l: number, c: number) => {x: number, y: number}, sm: ISelectionManager) {
-        for (const d of data) {
-            const color = this.getSeverityColor(((d.lRes ?? d.lInh) || 1) * ((d.cRes ?? d.cInh) || 1));
-            const start = (d.lInh && d.cInh) ? toXY(d.lInh, d.cInh) : undefined;
-            const end = (d.lRes && d.cRes) ? toXY(d.lRes, d.cRes) : start;
-            if (!end) continue;
+        // Group risks by cell for count aggregation
+        const cellMap = this.groupRisksByCell(data);
+        
+        // Settings for arrows and animation
+        const showInherentInOrganized = this.formattingSettings?.riskMarkersLayoutCard?.showInherentInOrganized?.value ?? false;
+        const organizedArrows = this.formattingSettings?.riskMarkersLayoutCard?.organizedArrows?.value ?? true;
+        const arrowDistance = this.formattingSettings.arrowsCard.arrowDistance.value || 5;
+        const arrowColor = this.formattingSettings.arrowsCard.arrowColor.value.value || "#666666";
+        const arrowTransparency = this.formattingSettings.arrowsCard.arrowTransparency.value || 100;
+        const arrowOpacity = arrowTransparency / 100;
+        const animationEnabled = this.formattingSettings?.animationCard?.enabled?.value ?? false;
+        const animationDuration = this.formattingSettings?.animationCard?.durationMs?.value || 1000;
+        
+        // Skip animation if a cell is expanded (we're just re-rendering after click)
+        const shouldAnimate = animationEnabled && !this.expandedCell;
+        
+        // Calculate animation timing (same as jittered layout)
+        const inherentFadeStart = Math.ceil(animationDuration * 2.5);
+        const arrowShowDelay = Math.ceil(animationDuration * 1.5);
+        const arrowHideStart = Math.ceil(animationDuration * 3.5);
+        const residualBuffer = Math.max(75, Math.ceil(animationDuration * 0.3));
+        // Residual markers should appear WITH arrows, not after they hide
+        const residualDelay = arrowShowDelay; // Show at same time as arrows
+        
+        // Group risks by INHERENT position for initial display
+        const inherentCellMap = new Map<string, RiskPoint[]>();
+        for (const risk of data) {
+            if (risk.lInh !== undefined && risk.cInh !== undefined) {
+                const inhKey = `${risk.lInh}-${risk.cInh}`;
+                const existing = inherentCellMap.get(inhKey) || [];
+                existing.push(risk);
+                inherentCellMap.set(inhKey, existing);
+            }
+        }
+        
+        // Collect arrow positions between inherent and residual cells
+        interface ArrowPathData {
+            inherent: {x: number, y: number};
+            residual: {x: number, y: number};
+            maxScore: number;
+        }
+        const arrowPaths: ArrowPathData[] = [];
+        
+        // Prepare data for staggered animation (sorted by risk severity, high to low)
+        interface CellAnimationData {
+            cellKey: string;
+            position: {x: number, y: number};
+            count: number;
+            maxScore: number;
+            color: string;
+            risks: RiskPoint[];
+            isInherent: boolean;
+        }
+        
+        const inherentAnimationData: CellAnimationData[] = [];
+        const residualAnimationData: CellAnimationData[] = [];
+        
+        // Collect inherent markers data
+        if (showInherentInOrganized && shouldAnimate) {
+            inherentCellMap.forEach((risks, inhKey) => {
+                if (this.expandedCell === inhKey) return;
+                
+                const [L, C] = inhKey.split('-').map(Number);
+                const position = toXY(L, C);
+                const count = risks.length;
+                const maxScore = Math.max(...risks.map(r => 
+                    ((r.lInh || 1) * (r.cInh || 1))
+                ));
+                const color = this.getSeverityColor(maxScore);
+                
+                inherentAnimationData.push({
+                    cellKey: inhKey,
+                    position,
+                    count,
+                    maxScore,
+                    color,
+                    risks,
+                    isInherent: true
+                });
+                
+                // Check if any risks move to different residual position
+                const residualPositions = new Set(risks.map(r => `${r.lRes ?? r.lInh}-${r.cRes ?? r.cInh}`));
+                residualPositions.forEach(resKey => {
+                    if (resKey !== inhKey) {
+                        const [resL, resC] = resKey.split('-').map(Number);
+                        const resPosition = toXY(resL, resC);
+                        arrowPaths.push({
+                            inherent: position,
+                            residual: resPosition,
+                            maxScore
+                        });
+                    }
+                });
+            });
             
-            this.renderMarkerWithArrow(d, start, end, color, { dx: 0, dy: 0 }, sm);
+            // Sort inherent markers by risk severity (high to low)
+            inherentAnimationData.sort((a, b) => b.maxScore - a.maxScore);
+        }
+        
+        // Collect residual markers data
+        cellMap.forEach((risks, cellKey) => {
+            // Don't skip expanded cell - we need its data for rendering organized grid
+            const count = risks.length;
+            const maxScore = Math.max(...risks.map(r => 
+                ((r.lRes ?? r.lInh) || 1) * ((r.cRes ?? r.cInh) || 1)
+            ));
+            const color = this.getSeverityColor(maxScore);
+            const [L, C] = cellKey.split('-').map(Number);
+            const position = toXY(L, C);
+            
+            residualAnimationData.push({
+                cellKey,
+                position,
+                count,
+                maxScore,
+                color,
+                risks,
+                isInherent: false
+            });
+        });
+        
+        // Sort residual markers by risk severity (high to low)
+        residualAnimationData.sort((a, b) => b.maxScore - a.maxScore);
+        
+        // First pass: render inherent count markers with staggered animation
+        if (showInherentInOrganized && shouldAnimate) {
+            inherentAnimationData.forEach((data, index) => {
+                const staggerDelay = index * 100; // 100ms gap between each marker
+                
+                this.renderCountMarkerWithAnimation(
+                    `inh-${data.cellKey}`,
+                    data.count,
+                    data.position.x,
+                    data.position.y,
+                    data.color,
+                    sm,
+                    () => {}, // No click action for inherent markers (they fade out)
+                    true, // Animation enabled for inherent markers
+                    animationDuration,
+                    10 + staggerDelay, // Show with stagger
+                    inherentFadeStart + staggerDelay, // Fade out with stagger
+                    true // This is inherent marker (will fade out)
+                );
+            });
+        }
+        
+        // Second pass: render residual count markers or expanded cells
+        residualAnimationData.forEach((data, index) => {
+            const [L, C] = data.cellKey.split('-').map(Number);
+            
+            // Check if this cell is expanded
+            if (this.expandedCell === data.cellKey) {
+                // Render organized grid for this cell only
+                this.renderOrganizedCellOnly(data.risks, L, C, toXY, sm);
+            } else {
+                if (shouldAnimate && showInherentInOrganized) {
+                    // Staggered animation: 100ms gap between each marker
+                    const staggerDelay = index * 100;
+                    
+                    // Render with delayed animation (appears with arrows)
+                    this.renderCountMarkerWithAnimation(
+                        data.cellKey,
+                        data.count,
+                        data.position.x,
+                        data.position.y,
+                        data.color,
+                        sm,
+                        () => {
+                            // Expand this cell on click
+                            this.expandedCell = data.cellKey;
+                            // Re-render to show expanded view
+                            this.renderData(
+                                { width: Number(this.svg.getAttribute('width')), height: Number(this.svg.getAttribute('height')) },
+                                this.currentData || []
+                            );
+                        },
+                        true, // Animation enabled for residual markers when shouldAnimate is true
+                        animationDuration,
+                        residualDelay + staggerDelay, // Show with stagger
+                        0, // Never fade out (stays visible)
+                        false // This is residual marker (stays visible)
+                    );
+                } else {
+                    // No animation or inherent disabled - render immediately
+                    this.renderCountMarker(
+                        data.cellKey,
+                        data.count,
+                        data.position.x,
+                        data.position.y,
+                        data.color,
+                        sm,
+                        () => {
+                            // Expand this cell on click
+                            this.expandedCell = data.cellKey;
+                            // Re-render to show expanded view
+                            this.renderData(
+                                { width: Number(this.svg.getAttribute('width')), height: Number(this.svg.getAttribute('height')) },
+                                this.currentData || []
+                            );
+                        }
+                    );
+                }
+            }
+        });
+        
+        // Third pass: draw arrows from inherent to residual count markers with staggered animation
+        if (showInherentInOrganized && organizedArrows && arrowPaths.length > 0) {
+            // Sort arrows by severity (high to low) for staggered animation
+            const sortedArrowPaths = [...arrowPaths].sort((a, b) => b.maxScore - a.maxScore);
+            
+            sortedArrowPaths.forEach((path, index) => {
+                const adjustedPos = this.calculateArrowPosition(
+                    path.inherent,
+                    path.residual,
+                    arrowDistance
+                );
+                
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", String(adjustedPos.start.x));
+                line.setAttribute("y1", String(adjustedPos.start.y));
+                line.setAttribute("x2", String(adjustedPos.end.x));
+                line.setAttribute("y2", String(adjustedPos.end.y));
+                line.setAttribute("stroke", arrowColor);
+                line.setAttribute("stroke-opacity", String(arrowOpacity));
+                line.setAttribute("stroke-width", "1.5");
+                line.setAttribute("marker-end", "url(#arrow)");
+                line.setAttribute("pointer-events", "none");
+                
+                // Animate arrow opacity in sequence when animation enabled
+                if (shouldAnimate) {
+                    const staggerDelay = index * 100; // 100ms gap between each arrow
+                    
+                    line.setAttribute('opacity', '0');
+                    this.gArrows.appendChild(line);
+                    // Show arrow after inherent initial display with stagger
+                    setTimeout(() => {
+                        try { line.style.transition = `opacity ${animationDuration}ms ease-in`; } catch (e) {}
+                        line.setAttribute('opacity', '1');
+                    }, arrowShowDelay + staggerDelay);
+                    // Schedule arrow fade-out after inherent fade-out completes with stagger
+                    setTimeout(() => {
+                        try { line.style.transition = `opacity ${animationDuration}ms ease-out`; } catch (e) {}
+                        line.setAttribute('opacity', '0');
+                        // Remove from hit-testing after fade-out
+                        setTimeout(() => {
+                            try { line.setAttribute('display', 'none'); } catch (e) {}
+                        }, animationDuration);
+                    }, arrowHideStart + staggerDelay);
+                } else {
+                    line.setAttribute('opacity', '1');
+                    this.gArrows.appendChild(line);
+                }
+            });
         }
     }
     
